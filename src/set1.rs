@@ -76,7 +76,7 @@ fn score_cipher(cipher: &[u8]) -> f64 {
 /// Single byte xor cipher
 ///
 /// Solution for problem 3 from set1: <https://cryptopals.com/sets/1/challenges/3>
-fn single_byte_xor(b: &[u8]) -> Result<(u8, Vec<u8>), hex::FromHexError> {
+fn single_byte_xor(b: &[u8]) -> Result<(f64, u8, Vec<u8>), hex::FromHexError> {
     let input = hex::decode(b)?;
 
     let (mut high_score, mut message, mut key) = (0.0, Vec::new(), 0 as u8);
@@ -97,13 +97,35 @@ fn single_byte_xor(b: &[u8]) -> Result<(u8, Vec<u8>), hex::FromHexError> {
         }
     }
 
-    Ok((key, message))
+    Ok((high_score, key, message))
+}
+
+/// Find single byte xor
+///
+/// Solution for problem 4 from set1: <https://cryptopals.com/sets/1/challenges/4>
+fn find_single_byte_xor(b: Vec<Vec<u8>>) -> Result<Vec<u8>, hex::FromHexError> {
+    let (mut score, mut result) = (0.0, Vec::new());
+
+    for cipher in b {
+        let (s, _, m) = single_byte_xor(&cipher)?;
+
+        if s > score {
+            score = s;
+            result = m;
+        }
+    }
+
+    Ok((result))
 }
 
 mod test {
+    use super::find_single_byte_xor;
     use super::hex_to_b64;
     use super::single_byte_xor;
     use super::xor_buffers;
+
+    use std::fs::File;
+    use std::io::{self, prelude::*, BufReader};
 
     #[test]
     fn test_hex_to_b64() {
@@ -131,11 +153,24 @@ mod test {
     fn test_single_xor_cipher() {
         let input =
             String::from("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
-        let (_, message) = single_byte_xor(input.as_bytes()).unwrap();
+        let (_, _, message) = single_byte_xor(input.as_bytes()).unwrap();
 
         assert_eq!(
             "Cooking MC's like a pound of bacon",
             String::from_utf8(message).unwrap()
         );
+    }
+
+    #[test]
+    fn test_find_single_xor_cipher() {
+        let mut input: Vec<Vec<u8>> = Vec::new();
+
+        let reader = BufReader::new(File::open("./src/mock_data/single_xor_ciphers.txt").unwrap());
+
+        for line in reader.lines() {
+            input.push(line.unwrap().into_bytes());
+        }
+
+        assert_eq!(find_single_byte_xor(input).unwrap(), "Now that the party is jumping\n".as_bytes());
     }
 }
