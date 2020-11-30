@@ -118,9 +118,25 @@ fn find_single_byte_xor(b: Vec<Vec<u8>>) -> Result<Vec<u8>, hex::FromHexError> {
     Ok((result))
 }
 
+/// Repeating XOR-Key
+///
+/// Solution for problem 5 from set1: <https://cryptopals.com/sets/1/challenges/5>
+fn repeating_xor_key(b: &[u8]) -> Vec<u8> {
+    const KEY: &'static str = "ICE";
+
+    let mut result = Vec::new();
+
+    for i in 0..b.len() {
+        result.push(b[i] ^ KEY.bytes().nth(i % KEY.len()).unwrap());
+    }
+
+    result
+}
+
 mod test {
     use super::find_single_byte_xor;
     use super::hex_to_b64;
+    use super::repeating_xor_key;
     use super::single_byte_xor;
     use super::xor_buffers;
 
@@ -171,6 +187,21 @@ mod test {
             input.push(line.unwrap().into_bytes());
         }
 
-        assert_eq!(find_single_byte_xor(input).unwrap(), "Now that the party is jumping\n".as_bytes());
+        assert_eq!(
+            find_single_byte_xor(input).unwrap(),
+            "Now that the party is jumping\n".as_bytes()
+        );
+    }
+
+    #[test]
+    fn test_repeating_xor_key() {
+        let input = String::from(
+            r"Burning 'em, if you ain't quick and nimble
+I go crazy when I hear a cymbal",
+        );
+
+        let have = repeating_xor_key(input.as_bytes());
+
+        assert_eq!(hex::encode(have), "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f");
     }
 }
