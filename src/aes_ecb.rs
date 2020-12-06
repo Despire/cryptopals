@@ -40,6 +40,9 @@ pub fn encrypt_aes_128_ecb(
     b: &[u8],
     k: &[u8],
 ) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
+    // pad input.
+    let b = &crate::padding::pkcs7(b, 16);
+
     let mut encryptor = aes::ecb_encryptor(aes::KeySize::KeySize128, k, blockmodes::NoPadding);
 
     let mut final_result = Vec::<u8>::new();
