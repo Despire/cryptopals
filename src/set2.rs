@@ -3,22 +3,115 @@ use rand::Rng;
 use rand_core::{OsRng, RngCore};
 use std::collections::HashMap;
 
+static global_unknown_key: [u8; 16] = [
+    117, 73, 22, 23, 214, 139, 241, 39, 171, 181, 118, 0, 207, 117, 229, 162,
+];
+
+pub fn encrypt_profile(profile: &str) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
+    return crate::aes_ecb::encrypt_aes_128_ecb(kv_encode(profile).as_bytes(), &global_unknown_key);
+}
+
+pub fn decrypt_profile(profile: &[u8]) -> Result<String, symmetriccipher::SymmetricCipherError> {
+    let kv = crate::aes_ecb::decrypt_aes_128_ecb(profile, &global_unknown_key)?;
+    Ok(kv_parse(&String::from_utf8(kv).unwrap()).unwrap())
+}
+
+/// ECB cut-and-paste
+///
+/// Solution for problem 5 from set 2: <https://cryptopals.com/sets/2/challenges/13>
+pub fn ecb_cut_and_paste() -> Vec<u8> {
+    // block1: email=zod@gmail. block2: com&uid=10&role= bock3: user\0xC\0xC\0xC\0xC\0xC\0xC\0xC\0xC\0xC\0xC\0xC\0xC
+    let my_profile = profile_for("zod@gmail.com");
+    let ciphertext = encrypt_profile(&my_profile).unwrap();
+
+    let my_profile2 =
+        profile_for("xxxxxxxxxxadmin\u{b}\u{b}\u{b}\u{b}\u{b}\u{b}\u{b}\u{b}\u{b}\u{b}\u{b}");
+    let ciphertext2 = encrypt_profile(&my_profile2).unwrap();
+
+    // take the first two block of ciphertext1 and the second block from ciphertext 2
+    let mut new_ciphertext = Vec::from(&ciphertext[..32]);
+    new_ciphertext.extend_from_slice(&ciphertext2[16..32]);
+
+    new_ciphertext
+}
+
+/// profile_for
+///
+/// Solution for problem 5 from set 2: <https://cryptopals.com/sets/2/challenges/13>
+pub fn profile_for(email: &str) -> String {
+    return serde_json::json!({
+        "email": email.replace("&", "").replace("=", ""),
+        "uid": 10,
+        "role": "user",
+    })
+    .to_string();
+}
+
+/// encoding for key-value pairs
+///
+/// Solution for problem 5 from set 2: <https://cryptopals.com/sets/2/challenges/13>
+pub fn kv_encode(profile: &str) -> String {
+    let m: serde_json::Value = serde_json::from_str(profile).unwrap();
+
+    let mut result = String::from("");
+    result.push_str("email=");
+    result.push_str(m["email"].as_str().unwrap());
+    result.push('&');
+    result.push_str("uid=");
+    result.push_str(&serde_json::to_string(&m["uid"]).unwrap());
+    result.push('&');
+    result.push_str("role=");
+    result.push_str(m["role"].as_str().unwrap());
+
+    result
+}
+
+/// decoding for key-value pairs
+///
+/// Solution for problem 5 from set 2: <https://cryptopals.com/sets/2/challenges/13>
+pub fn kv_parse(kv: &str) -> Result<String, crate::Error> {
+    let mut iter = kv.split('&');
+
+    let mut result = serde_json::Map::new();
+
+    loop {
+        match iter.next() {
+            Some(inner_kv) => {
+                if inner_kv.matches('=').count() != 1 {
+                    return Err(crate::Error::InvalidKVPair);
+                }
+
+                let mut inner_iter = inner_kv.split('=');
+
+                let left = inner_iter.next().unwrap();
+                let right = inner_iter.next().unwrap();
+
+                result.insert(
+                    left.to_string(),
+                    match right.parse::<i64>() {
+                        Ok(v) => serde_json::Value::Number(serde_json::Number::from(v)),
+                        Err(_) => serde_json::Value::String(right.to_string()),
+                    },
+                );
+            }
+            None => break,
+        };
+    }
+
+    Ok(serde_json::to_string(&result).unwrap())
+}
+
 /// BATE (Byte at a time encryption)
 ///
 /// Soludion for problem 4 from set 2: <https://cryptopals.com/sets/2/challenges/12>
 pub fn ecb_oracle(b: &[u8]) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
-    static key: [u8; 16] = [
-        117, 73, 22, 23, 214, 139, 241, 39, 171, 181, 118, 0, 207, 117, 229, 162,
-    ];
-
     static unknown_string: &str = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
-
     let decoded_unknown = base64::decode(&unknown_string).unwrap();
 
     let mut plaintext = Vec::from(b);
     plaintext.extend_from_slice(&decoded_unknown);
 
-    crate::aes_ecb::encrypt_aes_128_ecb(&plaintext, &key)
+    crate::aes_ecb::encrypt_aes_128_ecb(&plaintext, &global_unknown_key)
 }
 
 /// Decrypts the unknown string for the ecb oracle
@@ -130,10 +223,61 @@ pub fn encryption_oracle(
 }
 
 mod test {
+    use super::decrypt_profile;
     use super::decrypt_unknown_string_ecb_oracle;
+    use super::ecb_cut_and_paste;
     use super::ecb_oracle;
+    use super::encrypt_profile;
     use super::encryption_oracle;
     use super::generate_key;
+    use super::kv_encode;
+    use super::kv_parse;
+    use super::profile_for;
+
+    #[test]
+    fn test_ecb_cut_and_paste() {
+        let ciphertext = ecb_cut_and_paste();
+        let plaintext = decrypt_profile(&ciphertext).unwrap();
+        assert_eq!(plaintext, "{\"email\":\"zod@gmail.com\",\"role\":\"admin\\u000b\\u000b\\u000b\\u000b\\u000b\\u000b\\u000b\\u000b\\u000b\\u000b\\u000b\",\"uid\":10}");
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_profile() {
+        let profile = profile_for("my@email.com");
+        let ciphertext = encrypt_profile(&profile).unwrap();
+        let plaintext = decrypt_profile(&ciphertext).unwrap();
+        assert_eq!(plaintext, "{\"email\":\"my@email.com\",\"role\":\"user\\r\\r\\r\\r\\r\\r\\r\\r\\r\\r\\r\\r\\r\",\"uid\":10}");
+    }
+
+    #[test]
+    fn test_kv_encode() {
+        let obj = kv_encode(&profile_for("foo@bar.com"));
+        assert_eq!(obj, "email=foo@bar.com&uid=10&role=user");
+    }
+
+    #[test]
+    fn test_profile_for() {
+        let obj = profile_for("foo@bar.com");
+        assert_eq!(
+            obj,
+            "{\"email\":\"foo@bar.com\",\"role\":\"user\",\"uid\":10}"
+        );
+
+        let obj = profile_for("foo@bar.com&role=admin");
+        assert_eq!(
+            obj,
+            "{\"email\":\"foo@bar.comroleadmin\",\"role\":\"user\",\"uid\":10}"
+        );
+    }
+
+    #[test]
+    fn test_kv_parse() {
+        let obj = kv_parse("foo=10&baz=qux&zap=zazzle").unwrap();
+        assert_eq!(obj, "{\"baz\":\"qux\",\"foo\":10,\"zap\":\"zazzle\"}");
+
+        let obj = kv_parse("foo=bar&baz=qux&zap=zazzle").unwrap();
+        assert_eq!(obj, "{\"baz\":\"qux\",\"foo\":\"bar\",\"zap\":\"zazzle\"}");
+    }
 
     #[test]
     fn test_generate_random_key() {
@@ -167,84 +311,8 @@ mod test {
 
     #[test]
     fn test_decrypt_unknown_string_ecb_oracle() {
-        // let mut input: Vec<u8> = Vec::new();
-
-        // let mut result = ecb_oracle(&input).unwrap();
-        // let initial_length = result.len();
-        // let mut new_length = initial_length;
-
-        // while initial_length == new_length {
-        //     input.push(b'A');
-        //     result = ecb_oracle(&input).unwrap();
-        //     new_length = result.len();
-        // }
-
-        // let block_size = new_length - initial_length;
-        // println!("{}", block_size);
-
-        // // detect if it is ecb (two block with same input map to the same output).
-        // let mut block = Vec::new();
-
-        // for i in 0..block_size {
-        //     block.push(b'A');
-        // }
-
-        // let mut plaintext = block.clone();
-        // plaintext.extend_from_slice(&block);
-
-        // let ciphertext = ecb_oracle(&plaintext).unwrap();
-
-        // assert_eq!(
-        //     crate::set1::detect_aes_128_ecb_mode(hex::encode(&ciphertext).as_bytes()).unwrap(),
-        //     true
-        // );
-
-        // let unknown_string = ecb_oracle(&Vec::new()).unwrap();
-        // let mut cracked = Vec::new();
-
-        // while cracked.len() != unknown_string.len() {
-        //     cracked.push(next_byte(block_size, &cracked));
-        // }
-
         assert_eq!(
             decrypt_unknown_string_ecb_oracle(), "Rollin\' in my 5.0\nWith my rag-top down so my hair can blow\nThe girlies on standby waving just to say hi\nDid you stop? No, I just drove by\n\u{1}\u{0}\u{0}\u{0}\u{0}\u{0}".as_bytes()
         );
     }
-
-    // fn next_byte(block_size: usize, cracked: &[u8]) -> u8 {
-    //     let mut prefix = block_size - ((1 + cracked.len()) % block_size);
-    //     if prefix == block_size {
-    //         prefix -= block_size;
-    //     }
-
-    //     let mut base: Vec<u8> = Vec::new();
-    //     for i in 0..prefix {
-    //         base.push(b'A');
-    //     }
-
-    //     let expanded_length: usize = base.len() + 1 + cracked.len();
-
-    //     let ciphertext = ecb_oracle(&base).unwrap();
-
-    //     let mut dict = HashMap::new();
-
-    //     for i in 0..256 {
-    //         let mut b = base.clone();
-    //         b.extend_from_slice(&cracked);
-    //         b.push(i as u8);
-
-    //         let mut c = ecb_oracle(&b).unwrap();
-    //         c.truncate(expanded_length);
-
-    //         dict.insert(c, b);
-    //     }
-
-    //     match dict.get(&ciphertext[..expanded_length]) {
-    //         Some(v) => {
-    //             let v = *v.get(v.len() - 1).unwrap();
-    //             v
-    //         }
-    //         None => b'\0',
-    //     }
-    // }
 }

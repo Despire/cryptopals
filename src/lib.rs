@@ -1,6 +1,7 @@
 #[derive(Debug)]
 pub enum Error {
     Empty,
+    InvalidKVPair,
 }
 
 pub mod aes_cbc;
