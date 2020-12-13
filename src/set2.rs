@@ -1,6 +1,99 @@
 use crypto::symmetriccipher;
 use rand::Rng;
 use rand_core::{OsRng, RngCore};
+use std::collections::HashMap;
+
+/// BATE (Byte at a time encryption)
+///
+/// Soludion for problem 4 from set 2: <https://cryptopals.com/sets/2/challenges/12>
+pub fn ecb_oracle(b: &[u8]) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
+    static key: [u8; 16] = [
+        117, 73, 22, 23, 214, 139, 241, 39, 171, 181, 118, 0, 207, 117, 229, 162,
+    ];
+
+    static unknown_string: &str = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
+
+    let decoded_unknown = base64::decode(&unknown_string).unwrap();
+
+    let mut plaintext = Vec::from(b);
+    plaintext.extend_from_slice(&decoded_unknown);
+
+    crate::aes_ecb::encrypt_aes_128_ecb(&plaintext, &key)
+}
+
+/// Decrypts the unknown string for the ecb oracle
+/// described in problem: <https://cryptopals.com/sets/2/challenges/12>
+pub fn decrypt_unknown_string_ecb_oracle() -> Vec<u8> {
+    let block_size = {
+        let unknown_output = ecb_oracle(&Vec::new()).unwrap();
+        let mut current_length = unknown_output.len();
+
+        let mut m = Vec::new();
+        while current_length == unknown_output.len() {
+            m.push(b'A');
+            current_length = ecb_oracle(&m).unwrap().len();
+        }
+
+        current_length - unknown_output.len()
+    };
+
+    let is_ecb = {
+        let mut block = Vec::with_capacity(block_size * 2);
+        for i in 0..block.capacity() {
+            block.push(b'A');
+        }
+
+        let is_ecb = crate::set1::detect_aes_128_ecb_mode(
+            hex::encode(ecb_oracle(&block).unwrap()).as_bytes(),
+        )
+        .unwrap();
+
+        is_ecb
+    };
+
+    if !is_ecb {
+        panic!("the cipher is not using ecb mode");
+    }
+
+    let end = ecb_oracle(&Vec::new()).unwrap().len();
+    let mut cracked_text = Vec::new();
+
+    while cracked_text.len() != end {
+        cracked_text.push({
+            let mut prefix = block_size - ((1 + cracked_text.len()) % block_size);
+            if prefix == block_size {
+                prefix -= block_size;
+            }
+
+            let mut base = Vec::new();
+            for i in 0..prefix {
+                base.push(b'A');
+            }
+
+            let expanded_length: usize = base.len() + 1 + cracked_text.len();
+            let ciphertext = ecb_oracle(&base).unwrap();
+
+            let mut dict = HashMap::new();
+            for i in 0..256 {
+                let mut b = base.clone();
+                b.extend_from_slice(&cracked_text);
+                b.push(i as u8);
+
+                let mut c = ecb_oracle(&b).unwrap();
+                c.truncate(expanded_length);
+
+                dict.insert(c, b);
+            }
+
+            match dict.get(&ciphertext[..expanded_length]) {
+                Some(v) => *v.get(v.len() - 1).unwrap(),
+                None => b'\0',
+            }
+        })
+    }
+
+    cracked_text
+}
 
 /// generate_key generetes a random key
 ///
@@ -37,6 +130,8 @@ pub fn encryption_oracle(
 }
 
 mod test {
+    use super::decrypt_unknown_string_ecb_oracle;
+    use super::ecb_oracle;
     use super::encryption_oracle;
     use super::generate_key;
 
@@ -69,4 +164,87 @@ mod test {
             false
         );
     }
+
+    #[test]
+    fn test_decrypt_unknown_string_ecb_oracle() {
+        // let mut input: Vec<u8> = Vec::new();
+
+        // let mut result = ecb_oracle(&input).unwrap();
+        // let initial_length = result.len();
+        // let mut new_length = initial_length;
+
+        // while initial_length == new_length {
+        //     input.push(b'A');
+        //     result = ecb_oracle(&input).unwrap();
+        //     new_length = result.len();
+        // }
+
+        // let block_size = new_length - initial_length;
+        // println!("{}", block_size);
+
+        // // detect if it is ecb (two block with same input map to the same output).
+        // let mut block = Vec::new();
+
+        // for i in 0..block_size {
+        //     block.push(b'A');
+        // }
+
+        // let mut plaintext = block.clone();
+        // plaintext.extend_from_slice(&block);
+
+        // let ciphertext = ecb_oracle(&plaintext).unwrap();
+
+        // assert_eq!(
+        //     crate::set1::detect_aes_128_ecb_mode(hex::encode(&ciphertext).as_bytes()).unwrap(),
+        //     true
+        // );
+
+        // let unknown_string = ecb_oracle(&Vec::new()).unwrap();
+        // let mut cracked = Vec::new();
+
+        // while cracked.len() != unknown_string.len() {
+        //     cracked.push(next_byte(block_size, &cracked));
+        // }
+
+        assert_eq!(
+            decrypt_unknown_string_ecb_oracle(), "Rollin\' in my 5.0\nWith my rag-top down so my hair can blow\nThe girlies on standby waving just to say hi\nDid you stop? No, I just drove by\n\u{1}\u{0}\u{0}\u{0}\u{0}\u{0}".as_bytes()
+        );
+    }
+
+    // fn next_byte(block_size: usize, cracked: &[u8]) -> u8 {
+    //     let mut prefix = block_size - ((1 + cracked.len()) % block_size);
+    //     if prefix == block_size {
+    //         prefix -= block_size;
+    //     }
+
+    //     let mut base: Vec<u8> = Vec::new();
+    //     for i in 0..prefix {
+    //         base.push(b'A');
+    //     }
+
+    //     let expanded_length: usize = base.len() + 1 + cracked.len();
+
+    //     let ciphertext = ecb_oracle(&base).unwrap();
+
+    //     let mut dict = HashMap::new();
+
+    //     for i in 0..256 {
+    //         let mut b = base.clone();
+    //         b.extend_from_slice(&cracked);
+    //         b.push(i as u8);
+
+    //         let mut c = ecb_oracle(&b).unwrap();
+    //         c.truncate(expanded_length);
+
+    //         dict.insert(c, b);
+    //     }
+
+    //     match dict.get(&ciphertext[..expanded_length]) {
+    //         Some(v) => {
+    //             let v = *v.get(v.len() - 1).unwrap();
+    //             v
+    //         }
+    //         None => b'\0',
+    //     }
+    // }
 }
