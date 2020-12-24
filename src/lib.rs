@@ -1,7 +1,8 @@
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Error {
     Empty,
     InvalidKVPair,
+    InvalidPKCS7,
 }
 
 pub mod aes_cbc;
