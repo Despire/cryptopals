@@ -10,7 +10,7 @@ pub fn pkcs7(b: &[u8], l: usize) -> Vec<u8> {
 
     let mut result = Vec::from(b);
 
-    for i in 0..blocks {
+    for _ in 0..blocks {
         result.push(blocks as u8);
     }
 

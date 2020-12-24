@@ -129,7 +129,7 @@ pub fn find_single_byte_xor(b: Vec<Vec<u8>>) -> Result<Vec<u8>, hex::FromHexErro
         }
     }
 
-    Ok((result))
+    Ok(result)
 }
 
 /// Repeating XOR-Key
@@ -192,7 +192,7 @@ pub fn break_repeating_xor_cipher(b: &[u8]) -> Result<Vec<u8>, hex::FromHexError
     let mut key: Vec<u8> = Vec::with_capacity(size);
     for i in 0..size {
         let d: Vec<_> = b.chunks(size).filter_map(|x| x.get(i).cloned()).collect();
-        let (_, k, m) = single_byte_xor(&hex::encode(d).into_bytes())?;
+        let (_, k, _) = single_byte_xor(&hex::encode(d).into_bytes())?;
         key.push(k);
     }
 
@@ -239,20 +239,20 @@ pub fn decrypt_aes_128_ecb(
 pub fn detect_aes_128_ecb_mode(b: &[u8]) -> Result<bool, hex::FromHexError> {
     let b = hex::decode(b)?;
 
-    const block_size: usize = 16; // 128 bits
+    const BLOCK_SIZE: usize = 16; // 128 bits
 
-    if b.len() % block_size != 0 {
+    if b.len() % BLOCK_SIZE != 0 {
         panic!("unsuported bytes length");
     }
 
-    let blocks = b.len() / block_size;
+    let blocks = b.len() / BLOCK_SIZE;
 
     let mut is_ecb = false;
     let mut seen: HashSet<&[u8]> = HashSet::new();
     let mut iteration = 0;
 
     loop {
-        let current = &b[iteration * block_size..(iteration + 1) * block_size];
+        let current = &b[iteration * BLOCK_SIZE..(iteration + 1) * BLOCK_SIZE];
         if seen.contains(current) {
             is_ecb = true;
             break;

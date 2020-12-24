@@ -8,15 +8,15 @@ pub fn encrypt_aes_128_cbc(
     k: &[u8],
     iv: &[u8],
 ) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
-    const block_size: usize = 16; // 128 bits
+    const BLOCK_SIZE: usize = 16; // 128 bits
 
     let mut result = Vec::new();
     let mut iteration = 0;
     let mut prev = Vec::from(iv);
 
     loop {
-        let beg = iteration * block_size;
-        let mut end = (iteration + 1) * block_size;
+        let beg = iteration * BLOCK_SIZE;
+        let mut end = (iteration + 1) * BLOCK_SIZE;
 
         let done = end >= b.len();
 
@@ -24,7 +24,7 @@ pub fn encrypt_aes_128_cbc(
             end = beg + (b.len() - beg);
         }
 
-        let current = crate::padding::pkcs7(&b[beg..end], block_size);
+        let current = crate::padding::pkcs7(&b[beg..end], BLOCK_SIZE);
 
         let xored = crate::set1::xor_buffers(
             hex::encode(current).as_bytes(),
@@ -57,20 +57,20 @@ pub fn decrypt_aes_128_cbc(
     k: &[u8],
     iv: &[u8],
 ) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
-    const block_size: usize = 16; // 128 bits
+    const BLOCK_SIZE: usize = 16; // 128 bits
 
-    if b.len() % block_size != 0 {
+    if b.len() % BLOCK_SIZE != 0 {
         panic!("unsuported bytes length");
     }
 
-    let blocks = b.len() / block_size;
+    let blocks = b.len() / BLOCK_SIZE;
 
     let mut result = Vec::new();
     let mut iteration = 0;
     let mut prev = iv;
 
     loop {
-        let current = &b[iteration * block_size..(iteration + 1) * block_size];
+        let current = &b[iteration * BLOCK_SIZE..(iteration + 1) * BLOCK_SIZE];
         let plaintext = crate::aes_ecb::decrypt_aes_128_ecb(current, k)?;
 
         let un_xored = crate::set1::xor_buffers(
