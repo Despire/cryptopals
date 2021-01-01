@@ -4,6 +4,100 @@ use rand_core::{OsRng, RngCore};
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+/// CBC bitflipping attack
+///
+/// Solution for problem 8 from set 2: <https://cryptopals.com/sets/2/challenges/16>
+pub fn cbc_bitflipping_attack(k: &[u8], iv: &[u8]) -> Result<bool, crate::Error> {
+    let block_size = {
+        let unknown_output = encrypt_user_data(&Vec::new(), k, iv).unwrap();
+        let mut current_length = unknown_output.len();
+
+        let mut m = Vec::new();
+        while current_length == unknown_output.len() {
+            m.push(b'A');
+            current_length = encrypt_user_data(&m, k, iv).unwrap().len();
+        }
+
+        current_length - unknown_output.len()
+    };
+
+    // comment1=cooking %20MCs;userdata= 0000000000000000 0000,admin-true; comment2=%20like %20a%20pound%20o f%20bacon
+    let mut ciphertext = encrypt_user_data(b"00000000000000000000,admin-true", k, iv).unwrap();
+
+    ciphertext[36] = {
+        let mut result = 0;
+
+        for i in 0..=255 {
+            if (ciphertext[36] ^ b',') ^ i == b';' {
+                result = i;
+            }
+        }
+
+        result
+    };
+
+    ciphertext[42] = {
+        let mut result = 0;
+
+        for i in 0..=255 {
+            if (ciphertext[42] ^ b'-') ^ i == b'=' {
+                result = i;
+            }
+        }
+
+        result
+    };
+
+    decrypt_user_data(&ciphertext, k, iv)
+}
+
+/// encrypt_user_data is a helper function for CBC bitflipping attacks
+///
+/// Solution for problem 8 from set 2: <https://cryptopals.com/sets/2/challenges/16>
+pub fn encrypt_user_data(
+    b: &[u8],
+    k: &[u8],
+    iv: &[u8],
+) -> Result<Vec<u8>, symmetriccipher::SymmetricCipherError> {
+    let mut user_data = Vec::new();
+
+    for c in b {
+        match c {
+            b';' => {}
+            b'=' => {}
+            _ => user_data.push(*c),
+        }
+    }
+
+    let mut plaintext = Vec::from("comment1=cooking%20MCs;userdata=");
+    plaintext.extend_from_slice(&user_data);
+    plaintext.extend_from_slice(b";comment2=%20like%20a%20pound%20of%20bacon");
+
+    return crate::aes_cbc::encrypt_aes_128_cbc(&plaintext, k, iv);
+}
+
+/// decrypt_user_data is a helper function for CBC bitflipping attacks
+///
+/// Solution for problem 8 from set 2: <https://cryptopals.com/sets/2/challenges/16>
+pub fn decrypt_user_data(b: &[u8], k: &[u8], iv: &[u8]) -> Result<bool, crate::Error> {
+    let plaintext = crate::aes_cbc::decrypt_aes_128_cbc(b, k, iv).unwrap();
+    let mut plaintext = String::from_utf8_lossy(&plaintext);
+
+    let mut iter = plaintext.split(";");
+    let mut contains = false;
+
+    loop {
+        match iter.next() {
+            Some(inner_kv) => {
+                if inner_kv == "admin=true" {
+                    return Ok(true);
+                }
+            }
+            None => return Ok(false),
+        };
+    }
+}
+
 /// ECB oracle harder
 ///
 /// Solution for problem 6 from set 2: <https://cryptopals.com/sets/2/challenges/14>
@@ -359,19 +453,49 @@ pub fn encryption_oracle(
 }
 
 mod test {
+    use super::cbc_bitflipping_attack;
     use super::decrypt_profile;
     use super::decrypt_unknown_string_ecb_oracle;
     use super::decrypt_unknown_string_ecb_oracle_harder;
+    use super::decrypt_user_data;
     use super::ecb_cut_and_paste;
     use super::ecb_oracle;
     use super::ecb_oracle_harder;
     use super::encrypt_profile;
+    use super::encrypt_user_data;
     use super::encryption_oracle;
     use super::generate_key;
     use super::kv_encode;
     use super::kv_parse;
     use super::profile_for;
     use rand_core::{OsRng, RngCore};
+
+    #[test]
+    fn test_cbc_blitflipping_attack() {
+        let mut unknown_key = [0 as u8; 16];
+        OsRng.fill_bytes(&mut unknown_key);
+
+        let mut iv = [0 as u8; 16];
+        OsRng.fill_bytes(&mut iv);
+
+        let result = cbc_bitflipping_attack(&unknown_key, &iv).unwrap();
+        assert_eq!(result, true);
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_user_data() {
+        let mut unknown_key = [0 as u8; 16];
+        OsRng.fill_bytes(&mut unknown_key);
+
+        let mut iv = [0 as u8; 16];
+        OsRng.fill_bytes(&mut iv);
+
+        let data = String::from("admin=true");
+
+        let ciphertext = encrypt_user_data(data.as_bytes(), &unknown_key, &iv);
+        let plaintext = decrypt_user_data(&ciphertext.unwrap(), &unknown_key, &iv);
+        assert_eq!(plaintext.unwrap(), false);
+    }
 
     #[test]
     fn test_ecb_cut_and_paste() {
@@ -476,7 +600,7 @@ mod test {
             }
 
             V.truncate(last);
-            return V
+            return V;
         }
 
         let mut unknown_key = [0 as u8; 16];
