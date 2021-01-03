@@ -5,6 +5,7 @@ pub enum Error {
     InvalidPKCS7,
 }
 
+pub mod aes_ctr;
 pub mod aes_cbc;
 pub mod aes_ecb;
 pub mod padding;

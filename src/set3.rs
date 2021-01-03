@@ -109,16 +109,8 @@ mod test {
         let mut unknown_key = [0 as u8; 16];
         OsRng.fill_bytes(&mut unknown_key);
 
-        unknown_key = [
-            26, 131, 86, 171, 76, 19, 96, 26, 65, 251, 57, 215, 16, 45, 211, 160,
-        ];
-
         let mut iv = [0 as u8; 16];
         OsRng.fill_bytes(&mut iv);
-
-        iv = [
-            168, 147, 123, 79, 169, 65, 15, 214, 174, 136, 104, 60, 160, 186, 118, 109,
-        ];
 
         let random_msgs = [
             String::from("MDAwMDAwTm93IHRoYXQgdGhlIHBhcnR5IGlzIGp1bXBpbmc="),
