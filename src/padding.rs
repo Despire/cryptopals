@@ -77,5 +77,10 @@ mod test {
         let have = pkcs7validate(input.as_bytes());
 
         assert_eq!(have.err().unwrap(), crate::Error::InvalidPKCS7);
+
+        let input = String::from("ICE ICE BABY\u{1}");
+        let have = pkcs7validate(input.as_bytes());
+
+        assert_eq!(have.unwrap(), "ICE ICE BABY".as_bytes());
     }
 }
