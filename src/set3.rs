@@ -26,6 +26,45 @@ pub fn decrypt_random_chosen_msg(b: &[u8], k: &[u8], iv: &[u8]) -> Result<bool, 
     }
 }
 
+/// attack_two_cbc_blocks decrypts the second block.
+/// Help source: <https://en.wikipedia.org/wiki/Padding_oracle_attack>
+/// Solution for problem 1 from set 3: <https://cryptopals.com/sets/3/challenges/17>
+pub fn attack_two_cbc_blocks(
+    block_size: usize,
+    first: &[u8],
+    second: &[u8],
+    k: &[u8],
+    iv: &[u8],
+) -> Vec<u8> {
+    let mut plaintext_prior_xor = Vec::new();
+    let mut plaintext = Vec::new();
+
+    for b in (0..block_size).rev() {
+        let padding_byte = (block_size - b) as u8;
+
+        let mut block = Vec::from(first);
+        block.extend_from_slice(second);
+
+        for j in 0..plaintext_prior_xor.len() {
+            block[j + b + 1] = plaintext_prior_xor[j] ^ padding_byte;
+        }
+
+        for i in 0..=255 as u8 {
+            block[b] = i;
+
+            if !decrypt_random_chosen_msg(&block, k, iv).unwrap() {
+                continue;
+            }
+
+            plaintext.insert(0, (padding_byte ^ i) ^ first[b]);
+            plaintext_prior_xor.insert(0, padding_byte ^ i);
+            break;
+        }
+    }
+
+    plaintext
+}
+
 /// cbc_oracle decrypts the ciphertext without the key.
 ///
 /// Solution for problem 1 from set 3: <https://cryptopals.com/sets/3/challenges/17>
@@ -37,42 +76,25 @@ pub fn cbc_oracle(random_msgs: &[String], k: &[u8], iv: &[u8]) -> String {
     let ciphertext = encrypt_random_chosen_msg(&msg, k, iv).unwrap();
     let block_size = 16; // 128 bit
 
-    let mut plaintext = Vec::from(ciphertext.clone());
+    let mut plaintext = Vec::new();
 
-    let mut iter = ciphertext.chunks(block_size).rev();
-
+    let mut iter = ciphertext.chunks(block_size);
+    let mut previous_block = iv;
     loop {
         let current_block = match iter.next() {
             Some(v) => v,
             None => break,
         };
 
-        let previous_block = match iter.next() {
-            Some(v) => v,
-            None => iv,
-        };
+        plaintext.extend_from_slice(&attack_two_cbc_blocks(
+            block_size,
+            previous_block,
+            current_block,
+            k,
+            iv,
+        ));
 
-        for b in (0..block_size).rev() {
-            let padding_byte = (block_size - b) as u8;
-
-            let mut test_block = Vec::from(previous_block);
-            test_block.extend_from_slice(current_block);
-
-            for j in b + 1..block_size {
-                test_block[j] = previous_block[j] ^ plaintext[j] ^ padding_byte;
-            }
-
-            for i in 0..=255 as u8 {
-                test_block[b] = i;
-
-                if !decrypt_random_chosen_msg(&test_block, k, iv).unwrap() {
-                    continue;
-                }
-
-                plaintext[b] = (padding_byte ^ i) ^ previous_block[b];
-                break;
-            }
-        }
+        previous_block = current_block;
     }
 
     String::from_utf8_lossy(&plaintext).to_string()
@@ -87,8 +109,16 @@ mod test {
         let mut unknown_key = [0 as u8; 16];
         OsRng.fill_bytes(&mut unknown_key);
 
+        unknown_key = [
+            26, 131, 86, 171, 76, 19, 96, 26, 65, 251, 57, 215, 16, 45, 211, 160,
+        ];
+
         let mut iv = [0 as u8; 16];
         OsRng.fill_bytes(&mut iv);
+
+        iv = [
+            168, 147, 123, 79, 169, 65, 15, 214, 174, 136, 104, 60, 160, 186, 118, 109,
+        ];
 
         let random_msgs = [
             String::from("MDAwMDAwTm93IHRoYXQgdGhlIHBhcnR5IGlzIGp1bXBpbmc="),
@@ -105,8 +135,6 @@ mod test {
             String::from("MDAwMDA5aXRoIG15IHJhZy10b3AgZG93biBzbyBteSBoYWlyIGNhbiBibG93"),
         ];
 
-        // Sometimes is gets decrypted half way trough sometimes giberish comes out
-        // I did not finish this problem.
         let have = cbc_oracle(&random_msgs, &unknown_key, &iv);
         println!("{}", have);
     }

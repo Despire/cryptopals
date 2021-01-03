@@ -23,6 +23,10 @@ pub fn pkcs7(b: &[u8], l: usize) -> Vec<u8> {
 pub fn pkcs7validate(b: &[u8]) -> Result<Vec<u8>, crate::Error> {
     let padding = b[b.len() - 1];
 
+    if padding == 0 {
+        return Err(crate::Error::InvalidPKCS7);
+    }
+
     if padding as usize > b.len() {
         return Err(crate::Error::InvalidPKCS7);
     }
