@@ -3,11 +3,13 @@ pub enum Error {
     Empty,
     InvalidKVPair,
     InvalidPKCS7,
+    MT19937InvalidState,
 }
 
-pub mod aes_ctr;
 pub mod aes_cbc;
+pub mod aes_ctr;
 pub mod aes_ecb;
+pub mod mt19937;
 pub mod padding;
 pub mod set1;
 pub mod set2;
