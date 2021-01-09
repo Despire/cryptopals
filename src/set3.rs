@@ -1,5 +1,53 @@
 use crypto::symmetriccipher;
 use rand::Rng;
+use std::collections::HashMap;
+
+/// break_fixed_nonce_ctr breaks aes_ctr with fixed nonce
+///
+/// Solution for problem 3 from set 3: <https://cryptopals.com/sets/3/challenges/19>
+pub fn break_fixed_nonce_ctr(
+    input: &Vec<Vec<u8>>,
+    k: &[u8],
+) -> Result<Vec<Vec<u8>>, symmetriccipher::SymmetricCipherError> {
+    let mut ciphertexts: Vec<Vec<u8>> = Vec::new();
+    let mut longest = 0;
+    for line in input {
+        if line.len() > longest {
+            longest = line.len();
+        }
+
+        ciphertexts.push(crate::aes_ctr::aes_128_ctr(&line, k, &[0 as u8; 8])?);
+    }
+
+    let to_break: Vec<_> = ciphertexts.iter().cloned().map(|x| x).collect();
+    let mut key = Vec::new();
+
+    for column in 0..longest {
+        let column_vec: Vec<_> = to_break
+            .iter()
+            .map(|x| match x.get(column) {
+                Some(v) => *v,
+                None => to_break[0][0],
+            })
+            .collect();
+        let (_, k, _) = crate::set1::single_byte_xor(hex::encode(&column_vec).as_bytes()).unwrap();
+        key.push(k);
+    }
+
+    let mut plaintexts = Vec::new();
+
+    for v in to_break {
+        let plaintext = crate::set1::xor_buffers(
+            hex::encode(&v).as_bytes(),
+            hex::encode(&key[..v.len()]).as_bytes(),
+        )
+        .unwrap();
+
+        plaintexts.push(plaintext);
+    }
+
+    Ok(plaintexts)
+}
 
 /// encrypt_random_chosen_msg is a helper function for problem 1 from set 3.
 ///
@@ -101,8 +149,83 @@ pub fn cbc_oracle(random_msgs: &[String], k: &[u8], iv: &[u8]) -> String {
 }
 
 mod test {
+    use super::break_fixed_nonce_ctr;
     use super::cbc_oracle;
+
     use rand_core::{OsRng, RngCore};
+    use std::fs::File;
+    use std::io::{self, prelude::*, BufReader};
+
+    #[test]
+    fn test_break_fixed_nonce_statistically() {
+        let mut input: Vec<Vec<u8>> = Vec::new();
+
+        let reader = BufReader::new(File::open("./src/mock_data/aes_ctr.txt").unwrap());
+
+        for line in reader.lines() {
+            input.push(base64::decode(line.unwrap().into_bytes()).unwrap());
+        }
+
+        let mut unknown_key = [0 as u8; 16];
+        OsRng.fill_bytes(&mut unknown_key);
+
+        for plaintext in break_fixed_nonce_ctr(&input, &unknown_key).unwrap() {
+            println!("{:?}", String::from_utf8_lossy(&plaintext));
+        }
+    }
+
+    #[test]
+    fn test_break_fixed_nonce_ctr() {
+        let mut unknown_key = [0 as u8; 16];
+        OsRng.fill_bytes(&mut unknown_key);
+
+        let mut inputs: Vec<Vec<u8>> = Vec::new();
+        inputs.push(base64::decode("SSBoYXZlIG1ldCB0aGVtIGF0IGNsb3NlIG9mIGRheQ==").unwrap());
+        inputs.push(base64::decode("Q29taW5nIHdpdGggdml2aWQgZmFjZXM=").unwrap());
+        inputs.push(base64::decode("RnJvbSBjb3VudGVyIG9yIGRlc2sgYW1vbmcgZ3JleQ==").unwrap());
+        inputs.push(base64::decode("RWlnaHRlZW50aC1jZW50dXJ5IGhvdXNlcy4=").unwrap());
+        inputs.push(base64::decode("SSBoYXZlIHBhc3NlZCB3aXRoIGEgbm9kIG9mIHRoZSBoZWFk").unwrap());
+        inputs.push(base64::decode("T3IgcG9saXRlIG1lYW5pbmdsZXNzIHdvcmRzLA==").unwrap());
+        inputs.push(base64::decode("T3IgaGF2ZSBsaW5nZXJlZCBhd2hpbGUgYW5kIHNhaWQ=").unwrap());
+        inputs.push(base64::decode("UG9saXRlIG1lYW5pbmdsZXNzIHdvcmRzLA==").unwrap());
+        inputs.push(base64::decode("QW5kIHRob3VnaHQgYmVmb3JlIEkgaGFkIGRvbmU=").unwrap());
+        inputs.push(base64::decode("T2YgYSBtb2NraW5nIHRhbGUgb3IgYSBnaWJl").unwrap());
+        inputs.push(base64::decode("VG8gcGxlYXNlIGEgY29tcGFuaW9u").unwrap());
+        inputs.push(base64::decode("QXJvdW5kIHRoZSBmaXJlIGF0IHRoZSBjbHViLA==").unwrap());
+        inputs.push(base64::decode("QmVpbmcgY2VydGFpbiB0aGF0IHRoZXkgYW5kIEk=").unwrap());
+        inputs.push(base64::decode("QnV0IGxpdmVkIHdoZXJlIG1vdGxleSBpcyB3b3JuOg==").unwrap());
+        inputs.push(base64::decode("QWxsIGNoYW5nZWQsIGNoYW5nZWQgdXR0ZXJseTo=").unwrap());
+        inputs.push(base64::decode("QSB0ZXJyaWJsZSBiZWF1dHkgaXMgYm9ybi4=").unwrap());
+        inputs.push(base64::decode("VGhhdCB3b21hbidzIGRheXMgd2VyZSBzcGVudA==").unwrap());
+        inputs.push(base64::decode("SW4gaWdub3JhbnQgZ29vZCB3aWxsLA==").unwrap());
+        inputs.push(base64::decode("SGVyIG5pZ2h0cyBpbiBhcmd1bWVudA==").unwrap());
+        inputs.push(base64::decode("VW50aWwgaGVyIHZvaWNlIGdyZXcgc2hyaWxsLg==").unwrap());
+        inputs.push(base64::decode("V2hhdCB2b2ljZSBtb3JlIHN3ZWV0IHRoYW4gaGVycw==").unwrap());
+        inputs.push(base64::decode("V2hlbiB5b3VuZyBhbmQgYmVhdXRpZnVsLA==").unwrap());
+        inputs.push(base64::decode("U2hlIHJvZGUgdG8gaGFycmllcnM/").unwrap());
+        inputs.push(base64::decode("VGhpcyBtYW4gaGFkIGtlcHQgYSBzY2hvb2w=").unwrap());
+        inputs.push(base64::decode("QW5kIHJvZGUgb3VyIHdpbmdlZCBob3JzZS4=").unwrap());
+        inputs.push(base64::decode("VGhpcyBvdGhlciBoaXMgaGVscGVyIGFuZCBmcmllbmQ=").unwrap());
+        inputs.push(base64::decode("V2FzIGNvbWluZyBpbnRvIGhpcyBmb3JjZTs=").unwrap());
+        inputs.push(base64::decode("SGUgbWlnaHQgaGF2ZSB3b24gZmFtZSBpbiB0aGUgZW5kLA==").unwrap());
+        inputs.push(base64::decode("U28gc2Vuc2l0aXZlIGhpcyBuYXR1cmUgc2VlbWVkLA==").unwrap());
+        inputs.push(base64::decode("U28gZGFyaW5nIGFuZCBzd2VldCBoaXMgdGhvdWdodC4=").unwrap());
+        inputs.push(base64::decode("VGhpcyBvdGhlciBtYW4gSSBoYWQgZHJlYW1lZA==").unwrap());
+        inputs.push(base64::decode("QSBkcnVua2VuLCB2YWluLWdsb3Jpb3VzIGxvdXQu").unwrap());
+        inputs.push(base64::decode("SGUgaGFkIGRvbmUgbW9zdCBiaXR0ZXIgd3Jvbmc=").unwrap());
+        inputs.push(base64::decode("VG8gc29tZSB3aG8gYXJlIG5lYXIgbXkgaGVhcnQs").unwrap());
+        inputs.push(base64::decode("WWV0IEkgbnVtYmVyIGhpbSBpbiB0aGUgc29uZzs=").unwrap());
+        inputs.push(base64::decode("SGUsIHRvbywgaGFzIHJlc2lnbmVkIGhpcyBwYXJ0").unwrap());
+        inputs.push(base64::decode("SW4gdGhlIGNhc3VhbCBjb21lZHk7").unwrap());
+        inputs
+            .push(base64::decode("SGUsIHRvbywgaGFzIGJlZW4gY2hhbmdlZCBpbiBoaXMgdHVybiw=").unwrap());
+        inputs.push(base64::decode("VHJhbnNmb3JtZWQgdXR0ZXJseTo=").unwrap());
+        inputs.push(base64::decode("QSB0ZXJyaWJsZSBiZWF1dHkgaXMgYm9ybi4=").unwrap());
+
+        for plaintext in break_fixed_nonce_ctr(&inputs, &unknown_key).unwrap() {
+            println!("{:?}", String::from_utf8_lossy(&plaintext));
+        }
+    }
 
     #[test]
     fn test_cbc_oracle() {

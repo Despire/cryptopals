@@ -95,7 +95,7 @@ pub fn single_byte_xor(b: &[u8]) -> Result<(f64, u8, Vec<u8>), hex::FromHexError
 
     let (mut high_score, mut message, mut key) = (0.0, Vec::new(), 0 as u8);
 
-    for i in 0..128 {
+    for i in 0..=255 {
         let mut plaintext = Vec::new();
 
         for c in &input {
