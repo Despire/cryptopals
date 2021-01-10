@@ -4,6 +4,33 @@ use rand::Rng;
 use std::collections::HashMap;
 use std::{thread, time};
 
+/// break_mt19937_stream_cipher breaks the mt19937 stream cipher
+///
+/// Solution for problem 8 from set 3: <https://cryptopals.com/sets/3/challenges/24>
+pub fn break_mt19937_stream_cipher(seed: i16, b: &[u8]) -> Option<i16> {
+    let msg_string = String::from_utf8(Vec::from(b)).unwrap();
+
+    let encrypt = |b: &[u8]| -> Vec<u8> {
+        let mut prefix: Vec<u8> = vec![b'B', (seed % 16) as u8];
+        prefix.extend_from_slice(b);
+        prefix.extend_from_slice(";password_reset=true".as_bytes());
+
+        return crate::mt_19937_cipher::mt19937_stream_cipher(seed, &prefix);
+    };
+
+    let ciphertext = encrypt(b);
+    for i in std::i16::MIN..std::i16::MAX {
+        let plaintext_bytes = crate::mt_19937_cipher::mt19937_stream_cipher(i, &ciphertext);
+        let plaintext_string = String::from_utf8_lossy(&plaintext_bytes);
+
+        if plaintext_string.contains(&msg_string) {
+            return Some(i);
+        }
+    }
+
+    None
+}
+
 /// clone_mt19937_from_output creates a clone mt19937 generator
 /// form the output of another (with which we can predict values).
 ///
@@ -191,6 +218,7 @@ pub fn cbc_oracle(random_msgs: &[String], k: &[u8], iv: &[u8]) -> String {
 
 mod test {
     use super::break_fixed_nonce_ctr;
+    use super::break_mt19937_stream_cipher;
     use super::cbc_oracle;
     use super::clone_mt19937_from_output;
     use super::crack_mt19937_seed;
@@ -200,6 +228,14 @@ mod test {
     use rand_core::{OsRng, RngCore};
     use std::fs::File;
     use std::io::{self, prelude::*, BufReader};
+
+    #[test]
+    fn test_break_mt19937_stream_cipher() {
+        let mut seed: i16 = rand::thread_rng().gen();
+        let known_plaintext = "despire".as_bytes();
+        let have = break_mt19937_stream_cipher(seed, known_plaintext);
+        assert_eq!(have.unwrap(), seed);
+    }
 
     #[test]
     fn test_clone_mt19937_from_output() {
@@ -220,8 +256,7 @@ mod test {
     fn test_crack_mt19937_seed() {
         let seed: i32 = rand::thread_rng().gen();
         let guessed_seed = crack_mt19937_seed(seed);
-
-        assert_eq!(seed, guessed_seed.unwrap_or(panic!("failed to find seed")));
+        assert_eq!(seed, guessed_seed.unwrap());
     }
 
     #[test]

@@ -11,6 +11,7 @@ pub mod aes_ctr;
 pub mod aes_ecb;
 pub mod bits;
 pub mod mt19937;
+pub mod mt_19937_cipher;
 pub mod padding;
 pub mod set1;
 pub mod set2;
