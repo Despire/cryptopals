@@ -3,12 +3,19 @@ const LOWER_MASK: u32 = (1 << 31) - 1;
 const UPPER_MASK: u32 = !LOWER_MASK;
 
 #[derive(Debug)]
-struct MT19937 {
+pub struct MT19937 {
     mt: [u32; N],
     index: usize,
 }
 
 impl MT19937 {
+    pub fn uninitialized() -> MT19937 {
+        MT19937 {
+            index: 0,
+            mt: [0 as u32; N],
+        }
+    }
+
     pub fn new(seed: i32) -> MT19937 {
         let mut mt = [0 as u32; N];
 
@@ -56,10 +63,152 @@ impl MT19937 {
 
         Ok(y as i32)
     }
+
+    pub fn untemper(&mut self, i: usize, n: i32) {
+        // 1100 1110 0011 1101 1001 0001 1100 1101 original
+        //-----------------------------------------------
+        // 0001 1110 1100 1000 1110 0110 1000 0000 original << 7
+        // 1001 1101 0010 1100 0101 0110 1000 0000 0x9D2C5680u32
+        //-----------------------------------------------
+        // 0001 1100 0000 1000 0100 0110 1000 0000 AND
+        //
+        //////////////////////////////////////////////////////////
+        // 0001 1100 0000 1000 0100 0110 1000 0000 AND
+        // 1100 1110 0011 1101 1001 0001 1100 1101 original
+        //--------------------------------------------------------
+        // 1101 0010 0011 0101 1101 0111 0100 1101 XOR
+
+        // 1001 1101 0010 1100 0101 0110 1000 0000 0x9D2C5680u32
+        // 1101 0010 0011 0101 1101 0111 0100 1101 XOR
+
+        // 1101 0010 0011 0101 1101 0111 0100 1101 XOR
+        // 0001 1010 1110 1011 1010 0110 1000 0000 XOR << 7
+        // 0001 1110 1100 1000 1110 0110 1000 0000 original << 7
+        // 1001 1101 0010 1100 0101 0110 1000 0000 0x9D2C5680u32
+
+        let mut unsigned_n = n as u32;
+
+        unsigned_n = self.invert_l_xor(unsigned_n);
+        unsigned_n = self.invert_t_xor(unsigned_n);
+        unsigned_n = self.invert_s_xor(unsigned_n);
+        unsigned_n = self.invert_u_xor(unsigned_n);
+
+        self.mt[i] = unsigned_n;
+    }
+
+    fn invert_l_xor(&self, n: u32) -> u32 {
+        n ^ (n >> 18)
+    }
+
+    fn invert_t_xor(&self, n: u32) -> u32 {
+        ((n << 15) & 0xEFC60000u32) ^ n // bit Magic ;)
+    }
+
+    fn invert_s_xor(&self, n: u32) -> u32 {
+        let mut result: u32 = 0;
+
+        for i in 0..32 {
+            let bit = crate::bits::get_ith_bit_u32(n, i);
+            let shifted = crate::bits::get_ith_bit_u32(result, i - 7);
+            let and = crate::bits::get_ith_bit_u32(0x9D2C5680u32, i);
+
+            if bit ^ (shifted & and) == 1 {
+                crate::bits::set_ith_bit_u32(&mut result, i);
+            }
+        }
+
+        result
+    }
+
+    fn invert_u_xor(&self, mut n: u32) -> u32 {
+        let mut result: u32 = 0;
+
+        for i in (0..32).rev() {
+            let bit = crate::bits::get_ith_bit_u32(n, i);
+            let shifted = crate::bits::get_ith_bit_u32(result, i + 11);
+
+            if bit ^ shifted == 1 {
+                crate::bits::set_ith_bit_u32(&mut result, i);
+            }
+        }
+
+        result
+    }
 }
 
 mod test {
     use super::MT19937;
+
+    #[test]
+    fn test_untemper() {
+        let mut gen = MT19937::new(1);
+        let first_number = gen.extract_number().unwrap();
+        let second_number = gen.extract_number().unwrap();
+
+        let mut gen2 = MT19937::uninitialized();
+        gen2.untemper(1, second_number);
+        gen2.untemper(0, first_number);
+
+        assert_eq!(&gen2.mt[..2], &[2629073562 as u32, 2983301384 as u32]);
+    }
+
+    #[test]
+    fn test_invert_s_xor() {
+        let gen = MT19937::uninitialized();
+
+        assert_eq!(
+            gen.invert_s_xor(
+                0b11001110001111011001000111001101
+                    ^ ((0b11001110001111011001000111001101 << 7) & 0x9D2C5680u32)
+            ),
+            0b11001110001111011001000111001101,
+        );
+    }
+
+    #[test]
+    fn test_invert_u_xor() {
+        let gen = MT19937::uninitialized();
+
+        assert_eq!(
+            gen.invert_u_xor(
+                0b11001110001111011001000111001101 ^ (0b11001110001111011001000111001101 >> 11)
+            ),
+            0b11001110001111011001000111001101,
+        );
+    }
+
+    #[test]
+    fn test_invert_t_xor() {
+        let gen = MT19937::uninitialized();
+
+        assert_eq!(
+            gen.invert_t_xor(0b00000110111110111001000111001101),
+            0b11001110001111011001000111001101
+        );
+
+        assert_eq!(
+            gen.invert_t_xor(
+                0b11001110001111011001000111001101
+                    ^ ((0b11001110001111011001000111001101 << 15) & 0xEFC60000u32)
+            ),
+            0b11001110001111011001000111001101,
+        );
+
+        assert_eq!(gen.invert_t_xor(1 ^ ((1 << 15) & 0xEFC60000u32)), 1);
+    }
+
+    #[test]
+    fn test_invert_l_xor() {
+        let gen = MT19937::uninitialized();
+
+        assert_eq!(gen.invert_l_xor(5 ^ 0), 5);
+        assert_eq!(
+            gen.invert_l_xor(
+                0b11001110001111011001000111001101 ^ 0b00000000000000000011001110001111
+            ),
+            0b11001110001111011001000111001101
+        );
+    }
 
     #[test]
     fn test_new_mt19937() {
@@ -77,11 +226,13 @@ mod test {
         let mut vec1 = Vec::new();
         let mut vec2 = Vec::new();
 
-        for i in 0..100 {
+        for _ in 0..100 {
             vec1.push(gen1.extract_number().unwrap());
             vec2.push(gen2.extract_number().unwrap());
         }
 
         assert_eq!(vec1, vec2);
+        assert_eq!(gen1.index, gen2.index);
+        assert_eq!(gen1.mt, gen2.mt);
     }
 }

@@ -9,6 +9,7 @@ pub enum Error {
 pub mod aes_cbc;
 pub mod aes_ctr;
 pub mod aes_ecb;
+pub mod bits;
 pub mod mt19937;
 pub mod padding;
 pub mod set1;

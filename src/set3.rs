@@ -1,6 +1,47 @@
+use crate::mt19937::MT19937;
 use crypto::symmetriccipher;
 use rand::Rng;
 use std::collections::HashMap;
+use std::{thread, time};
+
+/// clone_mt19937_from_output creates a clone mt19937 generator
+/// form the output of another (with which we can predict values).
+///
+/// Solution for problem 7 from set 3: <https://cryptopals.com/sets/3/challenges/23>
+pub fn clone_mt19937_from_output(seed: i32) -> MT19937 {
+    let mut gen = MT19937::new(seed);
+
+    let mut outputs = Vec::new();
+    for _ in 0..624 {
+        outputs.push(gen.extract_number().unwrap());
+    }
+
+    let mut gen2 = MT19937::uninitialized();
+    for i in (0..624).rev() {
+        gen2.untemper(i, outputs[i]);
+    }
+
+    gen2
+}
+
+/// crack_mt19937_seed cracks the seed for the mt19937 generator.
+///
+/// Solution for problem 6 from set 3: <https://cryptopals.com/sets/3/challenges/22>
+pub fn crack_mt19937_seed(seed: i32) -> Option<i32> {
+    let mut gen = MT19937::new(seed);
+
+    let first_ouput = gen.extract_number().unwrap();
+
+    let mut guessed_seed: Option<i32> = None;
+    for i in std::i32::MIN..std::i32::MAX {
+        if MT19937::new(i).extract_number().unwrap() == first_ouput {
+            guessed_seed = Some(i);
+            break;
+        }
+    }
+
+    guessed_seed
+}
 
 /// break_fixed_nonce_ctr breaks aes_ctr with fixed nonce
 ///
@@ -151,10 +192,37 @@ pub fn cbc_oracle(random_msgs: &[String], k: &[u8], iv: &[u8]) -> String {
 mod test {
     use super::break_fixed_nonce_ctr;
     use super::cbc_oracle;
+    use super::clone_mt19937_from_output;
+    use super::crack_mt19937_seed;
+    use crate::mt19937::MT19937;
 
+    use rand::Rng;
     use rand_core::{OsRng, RngCore};
     use std::fs::File;
     use std::io::{self, prelude::*, BufReader};
+
+    #[test]
+    fn test_clone_mt19937_from_output() {
+        let seed: i32 = rand::thread_rng().gen();
+
+        let mut cloned_gen = clone_mt19937_from_output(seed);
+        let mut gen = MT19937::new(seed);
+
+        for _ in 0..624 {
+            assert_eq!(
+                cloned_gen.extract_number().unwrap(),
+                gen.extract_number().unwrap(),
+            )
+        }
+    }
+
+    #[test]
+    fn test_crack_mt19937_seed() {
+        let seed: i32 = rand::thread_rng().gen();
+        let guessed_seed = crack_mt19937_seed(seed);
+
+        assert_eq!(seed, guessed_seed.unwrap_or(panic!("failed to find seed")));
+    }
 
     #[test]
     fn test_break_fixed_nonce_statistically() {
