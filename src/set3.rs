@@ -1,56 +1,8 @@
 use crate::mt19937::MT19937;
-use byteorder::ByteOrder;
-use byteorder::LittleEndian;
 use crypto::symmetriccipher;
 use rand::Rng;
 use std::collections::HashMap;
 use std::{thread, time};
-
-/// edit replaces the old text at a given offset with new text
-///
-///  Solution for problem 1 from set 4: <https://cryptopals.com/sets/4/challenges/25>
-pub fn break_ciphertext_with_edit(b: &[u8], nb: &[u8], k: &[u8], offset: usize) -> Vec<u8> {
-    return edit(b, k, offset, nb);
-}
-
-/// edit replaces the old text at a given offset with new text
-///
-///  Solution for problem 1 from set 4: <https://cryptopals.com/sets/4/challenges/25>
-pub fn edit(b: &[u8], k: &[u8], offset: usize, nb: &[u8]) -> Vec<u8> {
-    if offset < 0 || offset > b.len() {
-        panic!("offset out of bounds")
-    }
-
-    const block_size: usize = 16;
-
-    let start = offset / block_size;
-    let end = ((offset + nb.len() - 1) / block_size) + 1;
-
-    let mut keystream = Vec::new();
-    for b in start..end {
-        let mut buff = [0; 8];
-        LittleEndian::write_u64(&mut buff, b as u64);
-
-        let mut v = Vec::from([0 as u8; 8]);
-        v.extend_from_slice(&buff);
-
-        keystream.extend_from_slice(&crate::aes_ecb::encrypt_aes_128_ecb(&v, k).unwrap());
-    }
-
-    // the precise address is offet % 16: (offset % 16)+nb.len()
-    let ciphertext = crate::set1::xor_buffers(
-        hex::encode(nb).as_bytes(),
-        hex::encode(&keystream[(offset % block_size)..(offset % block_size) + nb.len()]).as_bytes(),
-    )
-    .unwrap();
-
-    let mut result = Vec::new();
-    result.extend_from_slice(&b[..offset]);
-    result.extend_from_slice(&ciphertext);
-    result.extend_from_slice(&b[offset + nb.len()..]);
-
-    result
-}
 
 /// break_mt19937_stream_cipher breaks the mt19937 stream cipher
 ///
@@ -265,7 +217,6 @@ pub fn cbc_oracle(random_msgs: &[String], k: &[u8], iv: &[u8]) -> String {
 }
 
 mod test {
-    use super::break_ciphertext_with_edit;
     use super::break_fixed_nonce_ctr;
     use super::break_mt19937_stream_cipher;
     use super::cbc_oracle;
@@ -277,21 +228,6 @@ mod test {
     use rand_core::{OsRng, RngCore};
     use std::fs::File;
     use std::io::{self, prelude::*, BufReader};
-
-    #[test]
-    fn test_break_ciphertext_with_edit() {
-        let input = "I\'m back and I\'m ringin\' the bell \nA rockin\' on the mike while the fly girls yell \nIn ecstasy in the back of me \nWell that\'s my DJ Deshay cuttin\' all them Z\'s \nHittin\' hard and the girlies goin\' crazy \nVanilla\'s on the mike, man I\'m not lazy. \n\nI\'m lettin\' my drug kick in \nIt controls my mouth and I begin \nTo just let it flow, let my concepts go \nMy posse\'s to the side yellin\', Go Vanilla Go! \n\nSmooth \'cause that\'s the way I will be \nAnd if you don\'t give a damn, then \nWhy you starin\' at me \nSo get off \'cause I control the stage \nThere\'s no dissin\' allowed \nI\'m in my own phase \nThe girlies sa y they love me and that is ok \nAnd I can dance better than any kid n\' play \n\nStage 2 -- Yea the one ya\' wanna listen to \nIt\'s off my head so let the beat play through \nSo I can funk it up and make it sound good \n1-2-3 Yo -- Knock on some wood \nFor good luck, I like my rhymes atrocious \nSupercalafragilisticexpialidocious \nI\'m an effect and that you can bet \nI can take a fly girl and make her wet. \n\nI\'m like Samson -- Samson to Delilah \nThere\'s no denyin\', You can try to hang \nBut you\'ll keep tryin\' to get my style \nOver and over, practice makes perfect \nBut not if you\'re a loafer. \n\nYou\'ll get nowhere, no place, no time, no girls \nSoon -- Oh my God, homebody, you probably eat \nSpaghetti with a spoon! Come on and say it! \n\nVIP. Vanilla Ice yep, yep, I\'m comin\' hard like a rhino \nIntoxicating so you stagger like a wino \nSo punks stop trying and girl stop cryin\' \nVanilla Ice is sellin\' and you people are buyin\' \n\'Cause why the freaks are jockin\' like Crazy Glue \nMovin\' and groovin\' trying to sing along \nAll through the ghetto groovin\' this here song \nNow you\'re amazed by the VIP posse. \n\nSteppin\' so hard like a German Nazi \nStartled by the bases hittin\' ground \nThere\'s no trippin\' on mine, I\'m just gettin\' down \nSparkamatic, I\'m hangin\' tight like a fanatic \nYou trapped me once and I thought that \nYou might have it \nSo step down and lend me your ear \n\'89 in my time! You, \'90 is my year. \n\nYou\'re weakenin\' fast, YO! and I can tell it \nYour body\'s gettin\' hot, so, so I can smell it \nSo don\'t be mad and don\'t be sad \n\'Cause the lyrics belong to ICE, You can call me Dad \nYou\'re pitchin\' a fit, so step back and endure \nLet the witch doctor, Ice, do the dance to cure \nSo come up close and don\'t be square \nYou wanna battle me -- Anytime, anywhere \n\nYou thought that I was weak, Boy, you\'re dead wrong \nSo come on, everybody and sing this song \n\nSay -- Play that funky music Say, go white boy, go white boy go \nplay that funky music Go white boy, go white boy, go \nLay down and boogie and play that funky music till you die. \n\nPlay that funky music Come on, Come on, let me hear \nPlay that funky music white boy you say it, say it \nPlay that funky music A little louder now \nPlay that funky music, white boy Come on, Come on, Come on \nPlay that funky music \n\u{4}\u{4}\u{4}\u{4}";
-
-        let mut unknown_key = [0 as u8; 16];
-        OsRng.fill_bytes(&mut unknown_key);
-
-        let ciphertext =
-            crate::aes_ctr::aes_128_ctr(input.as_bytes(), &unknown_key, &[0 as u8; 8]).unwrap();
-        let offset = 0;
-        let plaintext = break_ciphertext_with_edit(&ciphertext, &ciphertext, &unknown_key, 0);
-
-        assert_eq!(plaintext, input.as_bytes());
-    }
 
     #[test]
     fn test_break_mt19937_stream_cipher() {
