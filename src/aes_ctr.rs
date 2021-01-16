@@ -35,7 +35,7 @@ pub fn aes_128_ctr(
                 .unwrap(),
         );
 
-        counter += 1
+        counter += 1;
     }
 
     Ok(keystream)
