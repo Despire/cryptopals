@@ -1,5 +1,3 @@
-use byteorder::ByteOrder;
-use byteorder::LittleEndian;
 use crypto::symmetriccipher;
 
 /// Implement CTR mode
@@ -18,11 +16,8 @@ pub fn aes_128_ctr(
     let mut counter: u64 = 0x0;
 
     for chunk in b.chunks(16) {
-        let mut buff = [0; 8];
-        LittleEndian::write_u64(&mut buff, counter);
-
         let mut v = Vec::from(nonce);
-        v.extend_from_slice(&buff);
+        v.extend_from_slice(&counter.to_le_bytes());
 
         let mut k = crate::aes_ecb::encrypt_aes_128_ecb(&v, k)?;
 

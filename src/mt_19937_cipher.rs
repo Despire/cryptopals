@@ -1,6 +1,3 @@
-use byteorder::ByteOrder;
-use byteorder::LittleEndian;
-
 use crate::mt19937::MT19937;
 
 /// mt19937_stream_cipher creates a stream cipher from the ouput of the mt19937 generator.///
@@ -11,13 +8,11 @@ pub fn mt19937_stream_cipher(seed: i16, b: &[u8]) -> Vec<u8> {
     let mut gen = MT19937::new(seed as i32);
 
     for chunk in b.chunks(4) {
-        let mut buff = [0 as u8; 4];
-        LittleEndian::write_u32(&mut buff, gen.extract_number().unwrap() as u32);
-
         keystream.extend_from_slice(
             &crate::set1::xor_buffers(
                 hex::encode(&chunk).as_bytes(),
-                hex::encode(&buff[..chunk.len()]).as_bytes(),
+                hex::encode(&(gen.extract_number().unwrap() as u32).to_le_bytes()[..chunk.len()])
+                    .as_bytes(),
             )
             .unwrap(),
         )

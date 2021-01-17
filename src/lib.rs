@@ -8,6 +8,7 @@ pub enum Error {
     FailedToCrackKey,
 }
 
+pub mod sha1;
 pub mod aes_cbc;
 pub mod aes_ctr;
 pub mod aes_ecb;

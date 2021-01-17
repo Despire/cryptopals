@@ -44,8 +44,6 @@ pub fn encrypt_aes_128_cbc(
         iteration += 1;
     }
 
-    println!("{}", iteration);
-
     Ok(result)
 }
 

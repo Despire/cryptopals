@@ -1,5 +1,3 @@
-use byteorder::ByteOrder;
-use byteorder::LittleEndian;
 use crypto::symmetriccipher;
 
 /// is_all_ascii returns true if all bytes are under 128 (original ascii set)
@@ -203,11 +201,8 @@ pub fn edit(b: &[u8], k: &[u8], offset: usize, nb: &[u8]) -> Vec<u8> {
 
     let mut keystream = Vec::new();
     for b in start..end {
-        let mut buff = [0; 8];
-        LittleEndian::write_u64(&mut buff, b as u64);
-
         let mut v = Vec::from([0 as u8; 8]);
-        v.extend_from_slice(&buff);
+        v.extend_from_slice(&(b as u64).to_le_bytes());
 
         keystream.extend_from_slice(&crate::aes_ecb::encrypt_aes_128_ecb(&v, k).unwrap());
     }
