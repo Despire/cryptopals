@@ -2,6 +2,87 @@ use byteorder::ByteOrder;
 use byteorder::LittleEndian;
 use crypto::symmetriccipher;
 
+/// is_all_ascii returns true if all bytes are under 128 (original ascii set)
+///
+/// Solution for problem 3 from set 4: <https://cryptopals.com/sets/4/challenges/27>
+fn is_all_ascii(b: &[u8]) -> bool {
+    for b in b {
+        if *b >= 128 {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/// CBC bitflipping attack recover key
+///
+/// Solution for problem 3 from set 4: <https://cryptopals.com/sets/4/challenges/27>
+pub fn cbc_bitflipping_attack_recover_key(k: &[u8]) -> Result<Vec<u8>, crate::Error> {
+    let block_size = 16;
+    let A = vec![b'A'; block_size];
+    let B = vec![b'B'; block_size];
+    let C = vec![b'C'; block_size];
+
+    let mut secret_msg = Vec::new();
+    secret_msg.extend_from_slice(&A);
+    secret_msg.extend_from_slice(&B);
+    secret_msg.extend_from_slice(&C);
+
+    let ciphertext = &crate::set2::encrypt_user_data(&secret_msg, k, k).unwrap();
+    let prefix_length = "comment1=cooking%20MCs;userdata=".len();
+
+    let mut mutated_ciphertext = Vec::new();
+    mutated_ciphertext.extend_from_slice(&ciphertext[prefix_length..prefix_length + block_size]);
+    mutated_ciphertext.extend_from_slice(&vec![0; block_size]);
+    mutated_ciphertext.extend_from_slice(&ciphertext[prefix_length..prefix_length + block_size]);
+
+    let result = decrypt_user_data_with_error(&mutated_ciphertext, k);
+    if let Err(err) = result {
+        if let crate::Error::InvalidASCII(msg) = err {
+            let p1 = &msg[..block_size];
+            let p3 = &msg[2 * block_size..];
+
+            return Ok(crate::set1::xor_buffers(
+                hex::encode(p1).as_bytes(),
+                hex::encode(p3).as_bytes(),
+            )
+            .unwrap());
+        }
+
+        Err(err)
+    } else {
+        Err(crate::Error::FailedToCrackKey)
+    }
+}
+
+/// decrypt_user_data is a helper function for CBC bitflipping attacks recover key
+///
+/// Solution for problem 3 from set 4: <https://cryptopals.com/sets/4/challenges/27>
+pub fn decrypt_user_data_with_error(b: &[u8], k: &[u8]) -> Result<bool, crate::Error> {
+    let plaintext = crate::aes_cbc::decrypt_aes_128_cbc(b, k, k).unwrap();
+
+    if !is_all_ascii(&plaintext) {
+        return Err(crate::Error::InvalidASCII(plaintext));
+    }
+
+    let mut plaintext = String::from_utf8_lossy(&plaintext);
+
+    let mut iter = plaintext.split(";");
+    let mut contains = false;
+
+    loop {
+        match iter.next() {
+            Some(inner_kv) => {
+                if inner_kv == "admin=true" {
+                    return Ok(true);
+                }
+            }
+            None => return Ok(false),
+        };
+    }
+}
+
 /// encrypt_user_data is a helper function for CTR bitflipping attacks
 ///
 /// Solution for problem 2 from set 4: <https://cryptopals.com/sets/4/challenges/26>
@@ -148,12 +229,22 @@ pub fn edit(b: &[u8], k: &[u8], offset: usize, nb: &[u8]) -> Vec<u8> {
 
 mod test {
     use super::break_ciphertext_with_edit;
+    use super::cbc_bitflipping_attack_recover_key;
     use super::ctr_bitflipping_attack;
     use super::decrypt_user_data;
     use super::encrypt_user_data;
 
     use rand::Rng;
     use rand_core::{OsRng, RngCore};
+
+    #[test]
+    fn test_cbc_bitflipping_attack_recover_key() {
+        let mut unknown_key = [0 as u8; 16];
+        OsRng.fill_bytes(&mut unknown_key);
+
+        let result = cbc_bitflipping_attack_recover_key(&unknown_key).unwrap();
+        assert_eq!(unknown_key, &result[..]);
+    }
 
     #[test]
     fn test_cbc_blitflipping_attack() {

@@ -1,9 +1,11 @@
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Error {
     Empty,
     InvalidKVPair,
     InvalidPKCS7,
     MT19937InvalidState,
+    InvalidASCII(Vec<u8>),
+    FailedToCrackKey,
 }
 
 pub mod aes_cbc;
