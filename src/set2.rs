@@ -425,6 +425,10 @@ pub fn generate_key(k: &mut [u8]) {
     OsRng.fill_bytes(k)
 }
 
+
+/// encryption_oracle
+/// 
+///  Solution for problem 3 from set 2: <https://cryptopals.com/sets/2/challenges/11>
 pub fn encryption_oracle(
     b: &[u8],
     r: u8, // for test mocking
