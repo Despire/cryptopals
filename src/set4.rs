@@ -1,5 +1,64 @@
 use crypto::symmetriccipher;
 
+/// md_pad pads the message the same way as the sha-1 implementation from [sha1.rs]
+///
+/// Solution for problem 5 from set4: <https://cryptopals.com/sets/4/challenges/29>
+fn md_pad(b: &[u8]) -> Vec<u8> {
+    let mut m = Vec::from(b);
+    m.push(0x80);
+
+    let mut k = (56 - m.len() as i64) % 64;
+    if k < 0 {
+        k = 64 + k;
+    }
+
+    m.extend_from_slice(&vec![0 as u8; k as usize]);
+    m.extend_from_slice(&((b.len() * 8) as u64).to_be_bytes());
+    m
+}
+
+/// break_sha1_length_extension breaks the sha 1 using length extension
+///
+/// Solution for problem 5 from set 4: <https://cryptopals.com/sets/4/challenges/29>
+pub fn break_sha1_length_extension(
+    b: &[u8],
+    k: &[u8],
+    digest: &[u8],
+) -> Result<Vec<u8>, crate::Error> {
+    let suffix = b";admin=true";
+
+    let digest = hex::decode(digest).unwrap();
+
+    let mut H = Vec::new();
+    for chunk in digest.chunks(4) {
+        H.push(u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
+    }
+
+    for l in 0..256 {
+        // (key || message || padding || new-msg)
+        let mut new_msg = Vec::from(vec![0 as u8; l]);
+        new_msg.extend_from_slice(b);
+        new_msg = md_pad(&new_msg);
+        new_msg.extend_from_slice(suffix);
+
+        let new_digest = crate::sha1::sha1(
+            suffix,
+            Some(new_msg.len() * 8),
+            Some(H[0]),
+            Some(H[1]),
+            Some(H[2]),
+            Some(H[3]),
+            Some(H[4]),
+        );
+
+        if crate::sha1::sha1_mac(k, &new_msg[l..]) == new_digest {
+            return Ok(new_digest);
+        }
+    }
+
+    Err(crate::Error::FailedToCrackKey)
+}
+
 /// is_all_ascii returns true if all bytes are under 128 (original ascii set)
 ///
 /// Solution for problem 3 from set 4: <https://cryptopals.com/sets/4/challenges/27>
@@ -224,6 +283,7 @@ pub fn edit(b: &[u8], k: &[u8], offset: usize, nb: &[u8]) -> Vec<u8> {
 
 mod test {
     use super::break_ciphertext_with_edit;
+    use super::break_sha1_length_extension;
     use super::cbc_bitflipping_attack_recover_key;
     use super::ctr_bitflipping_attack;
     use super::decrypt_user_data;
@@ -231,6 +291,32 @@ mod test {
 
     use rand::Rng;
     use rand_core::{OsRng, RngCore};
+
+    #[test]
+    fn test_break_sha1_length_extension() {
+        let msg = b"comment1=cooking%20MCs;userdata=foo;comment2=%20like%20a%20pound%20of%20bacon";
+
+        let mut unknown_key = [0 as u8; 16];
+        OsRng.fill_bytes(&mut unknown_key);
+
+        let digest = crate::sha1::sha1_mac(&unknown_key, msg);
+
+        assert_eq!(
+            break_sha1_length_extension(msg, &unknown_key, &digest).unwrap(),
+            crate::sha1::sha1_mac(
+                &unknown_key,
+                &[
+                    99, 111, 109, 109, 101, 110, 116, 49, 61, 99, 111, 111, 107, 105, 110, 103, 37,
+                    50, 48, 77, 67, 115, 59, 117, 115, 101, 114, 100, 97, 116, 97, 61, 102, 111,
+                    111, 59, 99, 111, 109, 109, 101, 110, 116, 50, 61, 37, 50, 48, 108, 105, 107,
+                    101, 37, 50, 48, 97, 37, 50, 48, 112, 111, 117, 110, 100, 37, 50, 48, 111, 102,
+                    37, 50, 48, 98, 97, 99, 111, 110, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 232, 59, 97, 100,
+                    109, 105, 110, 61, 116, 114, 117, 101
+                ]
+            ),
+        );
+    }
 
     #[test]
     fn test_cbc_bitflipping_attack_recover_key() {
