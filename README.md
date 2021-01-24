@@ -32,6 +32,34 @@ Cryptopals solution in Rust.
 | [PKCS#7 padding validation][5]                                           |  [Tests][5]  |    ✓    |
 | [CBC bitflipping attacks][2]                                             |  [Tests][2]  |    ✓    |
 
+[Set3](https://cryptopals.com/sets/3)
+------------------
+
+| Problem                                                                  | Test         | Solved  |
+|--------------------------------------------------------------------------|:------------:|:-------:|
+| [The CBC padding oracle][3]                                              |  [Tests][3]  |    ✓    |
+| [Implement CTR, the stream cipher mode][8]                               |  [Tests][8]  |    ✓    |
+| [Break fixed-nonce CTR mode using substitutions][3]                      |  [Tests][3]  |    ✓    |
+| [Break fixed-nonce CTR statistically][3]                                 |  [Tests][3]  |    ✓    |
+| [Implement the MT19937 Mersenne Twister RNG][9]                          |  [Tests][9]  |    ✓    |
+| [Crack an MT19937 seed][3]                                               |  [Tests][3]  |    ✓    |
+| [Clone an MT19937 RNG from its output][9]                                |  [Tests][9]  |    ✓    |
+| [Create the MT19937 stream cipher and break it][10]                      |  [Tests][10] |    ✓    |
+
+[Set4](https://cryptopals.com/sets/4)
+------------------
+
+| Problem                                                                  | Test         | Solved  |
+|--------------------------------------------------------------------------|:------------:|:-------:|
+| [Break "random access read/write" AES CTR][4]                            |  [Tests][4]  |    ✓    |
+| [CTR bitflipping][4]                                                     |  [Tests][4]  |    ✓    |
+| [Recover the key from CBC with IV=Key][4]                                |  [Tests][4]  |    ✓    |
+| [Implement a SHA-1 keyed MAC][11]                                        |  [Tests][11] |    ✓    |
+| [Break a SHA-1 keyed MAC using length extension][4]                      |  [Tests][4]  |    ✓    |
+| Break an MD4 keyed MAC using length extension                            |  Tests       |    x    |
+| Implement and break HMAC-SHA1 with an artificial timing leak             |  Tests       |    x    |
+| Break HMAC-SHA1 with a slightly less artificial timing leak              |  Tests       |    x    |
+
 
 [1]: src/set1.rs
 [2]: src/set2.rs
@@ -42,3 +70,7 @@ Cryptopals solution in Rust.
 [5]: src/padding.rs
 [6]: src/aes_cbc.rs
 [7]: src/aes_ecb.rs
+[8]: src/aes_ctr.rs
+[9]: src/mt19937.rs
+[10]: src/mt_19937_cipher.rs
+[11]: src/sha1.rs
