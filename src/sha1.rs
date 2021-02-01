@@ -4,6 +4,40 @@ pub fn sha1_mac(k: &[u8], b: &[u8]) -> Vec<u8> {
 
     sha1(&v, None, None, None, None, None, None)
 }
+/// hmac_sha1 <https://en.wikipedia.org/wiki/HMAC>
+pub fn sha1_hmac(k: &[u8], b: &[u8]) -> Vec<u8> {
+    let mut key: Vec<u8> = Vec::from(k);
+
+    if key.len() > 64 {
+        key = hex::decode(&sha1(&key, None, None, None, None, None, None)).unwrap();
+    }
+
+    if key.len() < 64 {
+        key.extend_from_slice(&vec![0 as u8; 64 - key.len()]);
+    }
+
+    let o_key_pad = crate::set1::xor_buffers(
+        hex::encode(&key).as_bytes(),
+        hex::encode(&vec![0x5c as u8; 64]).as_bytes(),
+    )
+    .unwrap();
+
+    let i_key_pad = crate::set1::xor_buffers(
+        hex::encode(&key).as_bytes(),
+        hex::encode(&vec![0x36 as u8; 64]).as_bytes(),
+    )
+    .unwrap();
+
+    let mut right_sha1 = Vec::from(i_key_pad);
+    right_sha1.extend_from_slice(b);
+
+    let mut v = Vec::from(o_key_pad);
+    v.extend_from_slice(
+        &hex::decode(&sha1(&right_sha1, None, None, None, None, None, None)).unwrap(),
+    );
+
+    sha1(&v, None, None, None, None, None, None)
+}
 
 /// SHA1 implementation from <https://en.wikipedia.org/wiki/SHA-1>
 ///
@@ -137,7 +171,21 @@ pub fn sha1(
 
 mod test {
     use super::sha1;
+    use super::sha1_hmac;
     use super::sha1_mac;
+
+    #[test]
+    fn test_sha1_hmac() {
+        assert_eq!(
+            sha1_hmac(b"A", b"A"),
+            b"0d8ee91e599c9dd5270f283f506f2d8ae586d3f7",
+        );
+
+        assert_eq!(
+            sha1_hmac(b"YELLOW_SUBMARINE", b"A"),
+            b"8a6d26219f5c4ea40192805b6db4d26bea394df2",
+        );
+    }
 
     #[test]
     fn test_sha1_mac() {

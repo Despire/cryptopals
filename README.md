@@ -57,7 +57,7 @@ Cryptopals solution in Rust.
 | [Implement a SHA-1 keyed MAC][11]                                        |  [Tests][11] |    ✓    |
 | [Break a SHA-1 keyed MAC using length extension][4]                      |  [Tests][4]  |    ✓    |
 | Break an MD4 keyed MAC using length extension                            |  Tests       |    x    |
-| Implement and break HMAC-SHA1 with an artificial timing leak             |  Tests       |    x    |
+| [Implement and break HMAC-SHA1 with an artificial timing leak][12]       |  [Tests][12] |    ✓    |
 | Break HMAC-SHA1 with a slightly less artificial timing leak              |  Tests       |    x    |
 
 
@@ -74,3 +74,4 @@ Cryptopals solution in Rust.
 [9]: src/mt19937.rs
 [10]: src/mt_19937_cipher.rs
 [11]: src/sha1.rs
+[12]: src/hmac_server.rs

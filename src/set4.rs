@@ -1,4 +1,102 @@
 use crypto::symmetriccipher;
+use std::time::{Duration, Instant};
+
+use rocket::http::Status;
+use rocket::local::Client;
+
+fn next_byte(client: &Client, cracked_mac: &[u8], filename: &[u8], i: usize) -> u8 {
+    const HMAC_LEN: usize = 20;
+
+    let s = hex::encode(&cracked_mac);
+    println!("cracked so far: {}", &s);
+
+    let mut cracked_mac = Vec::from(cracked_mac);
+    cracked_mac.extend_from_slice(&vec![0 as u8; HMAC_LEN - cracked_mac.len()]);
+
+    let max_time = {
+        let mut cracked_mac = cracked_mac.clone();
+
+        let mut meds = Vec::new();
+        for b in &[111, 187, 147, 200, 223, 79, 39] {
+            cracked_mac[i] = *b;
+
+            let mut counters = [0 as u128; 9];
+            for c in 0..9 {
+                let now = Instant::now();
+                client
+                    .get(format!(
+                        "/test?file={}&signature={}",
+                        String::from_utf8(Vec::from(filename)).unwrap(),
+                        &hex::encode(&cracked_mac),
+                    ))
+                    .dispatch();
+
+                counters[c] = now.elapsed().as_micros()
+            }
+
+            meds.push(crate::utils::med3_u128(
+                crate::utils::med3_u128(counters[0], counters[1], counters[2]),
+                crate::utils::med3_u128(counters[3], counters[4], counters[5]),
+                crate::utils::med3_u128(counters[6], counters[7], counters[8]),
+            ));
+        }
+
+        meds.sort();
+
+        meds[4]
+    };
+
+    let mut cracked_byte = 0;
+    let mut distance = 0;
+
+    for b in 0..=255 {
+        cracked_mac[i] = b;
+
+        let mut counters = [0 as u128; 3];
+        for c in 0..3 {
+            let now = Instant::now();
+            client
+                .get(format!(
+                    "/test?file={}&signature={}",
+                    String::from_utf8(Vec::from(filename)).unwrap(),
+                    &hex::encode(&cracked_mac),
+                ))
+                .dispatch();
+
+            counters[c] = now.elapsed().as_micros()
+        }
+
+        println!("calculted med_time_failure: {}", max_time);
+        let cm = crate::utils::med3_u128(counters[0], counters[1], counters[2]);
+        println!("caculated current_med: {}", cm);
+        let d = crate::utils::distance(cm, max_time);
+        println!("calculated distance: {}", d);
+        if d > distance {
+            cracked_byte = b;
+            distance = d;
+        }
+    }
+
+    cracked_byte
+}
+
+pub fn discover_mac_timing_attack(k: &[u8], filename: &[u8]) -> Vec<u8> {
+    const HMAC_LEN: usize = 20;
+
+    let client = Client::new(crate::hmac_server::rocket(k)).expect("valid rocket instance");
+    let mut cracked_mac = Vec::new();
+
+    while cracked_mac.len() < HMAC_LEN {
+        cracked_mac.push(next_byte(
+            &client,
+            &cracked_mac,
+            filename,
+            cracked_mac.len(),
+        ));
+    }
+
+    Vec::from(hex::encode(cracked_mac).as_bytes())
+}
 
 /// md_pad pads the message the same way as the sha-1 implementation from [sha1.rs]
 ///
@@ -287,10 +385,19 @@ mod test {
     use super::cbc_bitflipping_attack_recover_key;
     use super::ctr_bitflipping_attack;
     use super::decrypt_user_data;
+    use super::discover_mac_timing_attack;
     use super::encrypt_user_data;
 
     use rand::Rng;
     use rand_core::{OsRng, RngCore};
+
+    #[test]
+    fn test_discover_mac_timing_attack() {
+        assert_eq!(
+            discover_mac_timing_attack(b"YELLOW_SUBMARINE", b"server_file.txt"),
+            b"8a6d26219f5c4ea40192805b6db4d26bea394df2",
+        );
+    }
 
     #[test]
     fn test_break_sha1_length_extension() {
