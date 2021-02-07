@@ -60,6 +60,20 @@ Cryptopals solution in Rust.
 | [Implement and break HMAC-SHA1 with an artificial timing leak][12]       |  [Tests][12] |    ✓    |
 | Break HMAC-SHA1 with a slightly less artificial timing leak              |  Tests       |    x    |
 
+[Set5](https://cryptopals.com/sets/5)
+------------------
+
+| Problem                                                                  | Test         | Solved  |
+|--------------------------------------------------------------------------|:------------:|:-------:|
+| [Implement Diffie-Hellman][0]                                            |  [Tests][0]  |    ✓    |
+| MITM attack on Diffie-Hellman with parameter injection                   |  Tests       |    x    |
+| DH with negotiated groups, and break with malicious "g" parameters       |  Tests       |    x    |
+| Implement Secure Remote Password (SRP)                                   |  Tests       |    x    |
+| Break SRP with a zero key                                                |  Tests       |    x    |
+| Offline dictionary attack on simplified SRP                              |  Tests       |    x    |
+| Implement RSA                                                            |  Tests       |    x    |
+| Implement an E=3 RSA Broadcast attack                                    |  Tests       |    x    |
+
 
 [1]: src/set1.rs
 [2]: src/set2.rs
