@@ -1,7 +1,106 @@
 use num_bigint::BigUint;
+use num_bigint::{RandBigInt, ToBigInt};
 use num_integer::Integer;
 use num_traits::{One, Zero};
+use rand_core::{OsRng, RngCore};
 use std::ops::Mul;
+
+/// MITM attack
+///
+/// Solution for problem 2 from set5: <https://cryptopals.com/sets/5/challenges/34>
+pub fn mitm(alice: &DiffieHellman, bob: &DiffieHellman, msg: &[u8]) -> Vec<u8> {
+    // Oscar acts a the MITM.
+
+    // Oscars intercepts the set-up from alice
+    let mut A = alice.public_key();
+
+    // Oscar replaces the public key with 'p'
+    A = alice.p.clone();
+
+    // Oscar intercepts bob response to alice
+    let mut B = bob.public_key();
+
+    // Oscars replaces the public key with 'p'
+    B = bob.p.clone();
+
+    // Alice generate a random iv.
+    let mut iv = [0 as u8; 16];
+    OsRng.fill_bytes(&mut iv);
+
+    // Alice creates a msg and sends it to bob.
+    let mut alice_request = crate::aes_cbc::encrypt_aes_128_cbc(
+        msg,
+        &crate::sha1::sha1(
+            &alice.session_key(B.clone()).to_bytes_le(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )[..16],
+        &iv,
+    )
+    .unwrap();
+
+    alice_request.extend_from_slice(&iv);
+
+    // Oscar intercepts the msg.
+    // Oscar forwards it to bob.
+
+    // Bob receives alices request
+    let alice_iv = &alice_request[alice_request.len() - 16..];
+    let alice_msg = crate::aes_cbc::decrypt_aes_128_cbc(
+        &alice_request[..alice_request.len() - 16],
+        &crate::sha1::sha1(
+            &bob.session_key(A.clone()).to_bytes_le(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )[..16],
+        alice_iv,
+    )
+    .unwrap();
+
+    // Bob re-encrypts the msg back to alice
+    let mut bob_iv = [0 as u8; 16];
+    OsRng.fill_bytes(&mut bob_iv);
+
+    let mut bob_response = crate::aes_cbc::encrypt_aes_128_cbc(
+        &alice_msg,
+        &crate::sha1::sha1(
+            &bob.session_key(A.clone()).to_bytes_le(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )[..16],
+        &bob_iv,
+    )
+    .unwrap();
+
+    // Oscar intercepts bobs reponse
+    // Oscar forwards it to alice.
+
+    // Oscars cracks the key.
+    // (p^x) % p = 0
+    let cracked_key = crate::sha1::sha1(&[0], None, None, None, None, None, None);
+
+    // Oscars decrypts the msg from alice.
+    let alice_msg_to_bob = crate::aes_cbc::decrypt_aes_128_cbc(
+        &alice_request[..alice_request.len() - 16],
+        &cracked_key,
+        &alice_request[alice_request.len() - 16..],
+    )
+    .unwrap();
+
+    alice_msg_to_bob
+}
 
 /// Deffie-Hellman key-exchange parameters.
 ///
@@ -49,6 +148,7 @@ pub fn modular_pow(base: &BigUint, exponent: &BigUint, modulus: &BigUint) -> Big
 }
 
 mod test {
+    use super::mitm;
     use super::modular_pow;
     use super::DiffieHellman;
 
@@ -56,6 +156,27 @@ mod test {
     use num_bigint::{RandBigInt, ToBigInt};
     use num_traits::FromPrimitive;
     use std::str::FromStr;
+
+    #[test]
+    fn test_mitm() {
+        let mut rng = rand::thread_rng();
+
+        let alice = DiffieHellman {
+            private_key: rng.gen_biguint(256),
+            p: BigUint::from_u128(37).unwrap(),
+            g: BigUint::from_u128(5).unwrap(),
+        };
+
+        let bob = DiffieHellman {
+            private_key: rng.gen_biguint(256),
+            p: BigUint::from_u128(37).unwrap(),
+            g: BigUint::from_u128(5).unwrap(),
+        };
+
+        let msg = b"some random msg";
+
+        assert_eq!(mitm(&alice, &bob, msg), "some random msg\u{1}".as_bytes());
+    }
 
     #[test]
     fn test_diffie_hellman() {
