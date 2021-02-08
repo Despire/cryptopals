@@ -66,7 +66,7 @@ Cryptopals solution in Rust.
 | Problem                                                                  | Test         | Solved  |
 |--------------------------------------------------------------------------|:------------:|:-------:|
 | [Implement Diffie-Hellman][0]                                            |  [Tests][0]  |    ✓    |
-| MITM attack on Diffie-Hellman with parameter injection                   |  Tests       |    x    |
+| [MITM attack on Diffie-Hellman with parameter injection]                 |  [Tests][0]  |    ✓    |
 | DH with negotiated groups, and break with malicious "g" parameters       |  Tests       |    x    |
 | Implement Secure Remote Password (SRP)                                   |  Tests       |    x    |
 | Break SRP with a zero key                                                |  Tests       |    x    |
