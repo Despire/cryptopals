@@ -18,6 +18,7 @@ pub mod aes_ctr;
 pub mod aes_ecb;
 pub mod bits;
 pub mod hmac_server;
+pub mod mitm_g_attacks;
 pub mod mt19937;
 pub mod mt_19937_cipher;
 pub mod padding;
