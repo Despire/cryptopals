@@ -1,4 +1,5 @@
 use num_bigint::BigInt;
+use num_bigint::BigUint;
 use num_bigint::{RandBigInt, ToBigInt};
 use num_integer::Integer;
 use num_traits::FromPrimitive;
@@ -126,18 +127,54 @@ pub fn modinv(a: &BigInt, m: &BigInt) -> Result<BigInt, crate::Error> {
     Ok(x)
 }
 
+pub fn cube_root(n: &BigUint) -> BigUint {
+    let mut l: BigUint = Zero::zero();
+    let mut e: BigUint = n.clone();
+
+    while &l < &e {
+        let m = (&l + &e) / 2 as u128;
+        if &(&m * &m * &m) < n {
+            l = m + 1 as u128;
+        } else {
+            e = m;
+        }
+    }
+
+    l
+}
+
 mod test {
+    use super::cube_root;
     use super::med3_f64;
     use super::modinv;
 
     use num_bigint::BigInt;
+    use num_bigint::BigUint;
     use num_bigint::{RandBigInt, ToBigInt};
     use num_integer::Integer;
     use num_traits::FromPrimitive;
+    use num_traits::ToPrimitive;
     use num_traits::{One, Zero};
 
     #[test]
-    pub fn test_modinv() {
+    fn test_cubic_root() {
+        assert_eq!(
+            cube_root(&BigUint::from_u128(125).unwrap())
+                .to_u128()
+                .unwrap(),
+            5
+        );
+
+        assert_eq!(
+            cube_root(&BigUint::from_u128(531441).unwrap())
+                .to_u128()
+                .unwrap(),
+            81
+        );
+    }
+
+    #[test]
+    fn test_modinv() {
         let a = BigInt::from_u128(10).unwrap();
         let m = BigInt::from_u128(17).unwrap();
         assert_eq!(modinv(&a, &m).unwrap(), BigInt::from_u128(12).unwrap());

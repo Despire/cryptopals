@@ -8,8 +8,8 @@ use num_traits::ToPrimitive;
 use num_traits::{One, Zero};
 
 pub struct RSA {
-    e: BigUint,
-    n: BigUint,
+    pub e: BigUint,
+    pub n: BigUint,
     d: BigUint,
 }
 

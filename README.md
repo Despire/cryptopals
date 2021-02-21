@@ -3,6 +3,7 @@
 Cryptopals solution in Rust.
 
 <b>Used as a exercise to familiarize myself with rust, meaning the code is garbage</b>
+(with some solutions I was inspired by a lot of googling and https://github.com/ricpacca/cryptopals)
 
 [Set1](https://cryptopals.com/sets/1)
 ------------------
@@ -72,7 +73,7 @@ Cryptopals solution in Rust.
 | Break SRP with a zero key                                                |  Tests       |    x    |
 | Offline dictionary attack on simplified SRP                              |  Tests       |    x    |
 | [Implement RSA][14]                                                      |  [Tests][14] |    ✓    |
-| Implement an E=3 RSA Broadcast attack                                    |  Tests       |    x    |
+| [Implement an E=3 RSA Broadcast attack][0]                               |  [Tests][0]  |    ✓    |
 
 
 [0]: src/set5.rs

@@ -5,6 +5,37 @@ use num_traits::{One, Zero};
 use rand_core::{OsRng, RngCore};
 use std::ops::Mul;
 
+pub fn e_3_attack(ciphertexts: Vec<(Vec<u8>, BigUint)>) -> Vec<u8> {
+    let (c0, c1, c2) = (&ciphertexts[0].0, &ciphertexts[1].0, &ciphertexts[2].0);
+    let (n0, n1, n2) = (&ciphertexts[0].1, &ciphertexts[1].1, &ciphertexts[2].1);
+    let (m0, m1, m2) = (n1 * n2, n0 * n2, n0 * n1);
+
+    let l0 = &BigUint::from_bytes_be(c0)
+        * &m0
+        * crate::utils::modinv(&m0.to_bigint().unwrap(), &n0.to_bigint().unwrap())
+            .unwrap()
+            .to_biguint()
+            .unwrap();
+
+    let l1 = &BigUint::from_bytes_be(c1)
+        * &m1
+        * crate::utils::modinv(&m1.to_bigint().unwrap(), &n1.to_bigint().unwrap())
+            .unwrap()
+            .to_biguint()
+            .unwrap();
+
+    let l2 = &BigUint::from_bytes_be(c2)
+        * &m2
+        * crate::utils::modinv(&m2.to_bigint().unwrap(), &n2.to_bigint().unwrap())
+            .unwrap()
+            .to_biguint()
+            .unwrap();
+
+    let c = (l0 + l1 + l2) % (n0 * n1 * n2);
+
+    crate::utils::cube_root(&c).to_str_radix(16).into_bytes()
+}
+
 /// MITM attack
 ///
 /// Solution for problem 2 from set5: <https://cryptopals.com/sets/5/challenges/34>
@@ -148,6 +179,7 @@ pub fn modular_pow(base: &BigUint, exponent: &BigUint, modulus: &BigUint) -> Big
 }
 
 mod test {
+    use super::e_3_attack;
     use super::mitm;
     use super::modular_pow;
     use super::DiffieHellman;
@@ -156,6 +188,28 @@ mod test {
     use num_bigint::{RandBigInt, ToBigInt};
     use num_traits::FromPrimitive;
     use std::str::FromStr;
+
+    #[test]
+    fn test_e_3_attack() {
+        let plaintext = hex::encode("rsa e 3 attack");
+
+        let mut ciphers: Vec<(Vec<u8>, BigUint)> = Vec::new();
+        for _ in 0..3 {
+            loop {
+                let c = crate::rsa::RSA::new(512);
+                if let Err(_) = c {
+                    continue;
+                }
+
+                let c = c.unwrap();
+                ciphers.push((c.encrypt(plaintext.as_bytes()), c.n.clone()));
+
+                break;
+            }
+        }
+
+        assert_eq!(&e_3_attack(ciphers), plaintext.as_bytes());
+    }
 
     #[test]
     fn test_mitm() {
