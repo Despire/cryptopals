@@ -1,3 +1,10 @@
+use num_bigint::BigInt;
+use num_bigint::{RandBigInt, ToBigInt};
+use num_integer::Integer;
+use num_traits::FromPrimitive;
+use num_traits::{One, Zero};
+use std::ops::Div;
+
 pub fn med3_u128(mut left: u128, mut mid: u128, mut right: u128) -> u128 {
     if mid > right {
         let tmp = right;
@@ -82,8 +89,71 @@ pub fn mean_u128(b: &[u128]) -> f64 {
     b.iter().fold(0u128, |a, b| a + b) as f64 / b.len() as f64
 }
 
+// https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm
+pub fn modinv(a: &BigInt, m: &BigInt) -> Result<BigInt, crate::Error> {
+    let mut x = BigInt::from_u128(1).unwrap();
+    let mut y = BigInt::from_u128(0).unwrap();
+
+    let mut new_x = BigInt::from_u128(0).unwrap();
+    let mut new_y = BigInt::from_u128(1).unwrap();
+    let mut new_r = m.clone();
+    let mut r = a.clone();
+
+    while &new_r != &Zero::zero() {
+        let q = &r / &new_r;
+
+        let tmp = r.clone();
+        r = new_r.clone();
+        new_r = tmp - &q * new_r;
+
+        let tmp = x.clone();
+        x = new_x.clone();
+        new_x = tmp - &q * new_x;
+
+        let tmp = y.clone();
+        y = new_y.clone();
+        new_y = tmp - &q * new_y;
+    }
+
+    if &r > &One::one() {
+        return Err(crate::Error::NotInvertible);
+    }
+
+    if &x < &Zero::zero() {
+        x = x + m;
+    }
+
+    Ok(x)
+}
+
 mod test {
     use super::med3_f64;
+    use super::modinv;
+
+    use num_bigint::BigInt;
+    use num_bigint::{RandBigInt, ToBigInt};
+    use num_integer::Integer;
+    use num_traits::FromPrimitive;
+    use num_traits::{One, Zero};
+
+    #[test]
+    pub fn test_modinv() {
+        let a = BigInt::from_u128(10).unwrap();
+        let m = BigInt::from_u128(17).unwrap();
+        assert_eq!(modinv(&a, &m).unwrap(), BigInt::from_u128(12).unwrap());
+
+        let a = BigInt::from_u128(2321321).unwrap();
+        let m = BigInt::from_u128(12321).unwrap();
+        assert_eq!(modinv(&a, &m).unwrap(), BigInt::from_u128(11216).unwrap());
+
+        let a = BigInt::from_u128(0).unwrap();
+        let m = BigInt::from_u128(12321).unwrap();
+        assert_eq!(modinv(&a, &m), Err(crate::Error::NotInvertible));
+
+        let a = BigInt::from_u128(17).unwrap();
+        let m = BigInt::from_u128(3120).unwrap();
+        assert_eq!(modinv(&a, &m).unwrap(), BigInt::from_u128(2753).unwrap());
+    }
 
     #[test]
     pub fn test_med_f64() {

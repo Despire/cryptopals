@@ -71,7 +71,7 @@ Cryptopals solution in Rust.
 | Implement Secure Remote Password (SRP)                                   |  Tests       |    x    |
 | Break SRP with a zero key                                                |  Tests       |    x    |
 | Offline dictionary attack on simplified SRP                              |  Tests       |    x    |
-| Implement RSA                                                            |  Tests       |    x    |
+| [Implement RSA][14]                                                      |  [Tests][14] |    ✓    |
 | Implement an E=3 RSA Broadcast attack                                    |  Tests       |    x    |
 
 
@@ -91,3 +91,4 @@ Cryptopals solution in Rust.
 [11]: src/sha1.rs
 [12]: src/hmac_server.rs
 [13]: src/mitm_g_attacks.rs
+[14]: src/rsa.rs

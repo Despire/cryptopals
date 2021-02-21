@@ -11,6 +11,8 @@ pub enum Error {
     MT19937InvalidState,
     InvalidASCII(Vec<u8>),
     FailedToCrackKey,
+    NotInvertible,
+    InvalidBitsize,
 }
 
 pub mod aes_cbc;
@@ -22,6 +24,8 @@ pub mod mitm_g_attacks;
 pub mod mt19937;
 pub mod mt_19937_cipher;
 pub mod padding;
+pub mod rabin_miller;
+pub mod rsa;
 pub mod set1;
 pub mod set2;
 pub mod set3;
